@@ -1,0 +1,101 @@
+# Configuration for vega_1u (upper body only, no end effectors)
+teleop_mode: 'exo_joycon'
+
+input_handlers:
+  exo_joycon:
+    leader_arms:
+      compensate_torso_pitch: false  # No torso on upper body robot
+      port: "/dev/ttyUSB0"
+      baud_rate: 3000000
+      left_arm:
+        motor_ids: [101, 102, 103, 104, 105, 106, 107]
+        motor_polarities: [1, 1, 1, -1, 1, 1, 1]
+        follower_joint_names: ["L_arm_j1", "L_arm_j2", "L_arm_j3", "L_arm_j4", "L_arm_j5", "L_arm_j6", "L_arm_j7"]
+      right_arm:
+        motor_ids: [1, 2, 3, 4, 5, 6, 7]
+        motor_polarities: [1, 1, 1, 1, 1, 1, 1]
+        follower_joint_names: ["R_arm_j1", "R_arm_j2", "R_arm_j3", "R_arm_j4", "R_arm_j5", "R_arm_j6", "R_arm_j7"]
+
+    joycon:
+      stick_deadzone: 0.3
+
+    button_timings:
+      default_debounce: 0.01
+      stick_debounce: 0.03
+      estop_hold_duration: 1.5
+      exit_hold_duration: 1.0
+      recording_hold_duration: 1.0
+      head_toggle_duration: 1.0
+      combo_grace_period: 0.1
+
+  vr:
+    socket:
+      server_url: "http://localhost:8080"
+    device_type: "quest3"
+    tracking_space: "standing"
+    position_scale: 1.0
+    position_offset: [0.0, 0.0, 0.0]
+    use_relative_control: true
+    stick_deadzone: 0.2
+
+topics:
+  exo_joints: "exo/joints"
+  exo_joycon: "exo/joycon"
+  vr_controllers: "vr/controllers"
+  robot_commands: "robot/safe_commands"
+  robot_status: "robot/status"
+  robot_joints: "robot/joints"
+  telemetry: "robot/telemetry"
+  recorder_control: "recorder/control"
+
+rates:
+  input_rate: 20
+  command_rate: 20
+  control_rate: 100
+  feedback_rate: 100
+
+filters:
+  default:
+    type: "butterworth"
+    cutoff_freq: 10.0
+    order: 2
+    alpha: 0.1
+
+  components:
+    left_arm:
+      type: "butterworth"
+      cutoff_freq: 3.0
+      order: 2
+
+    right_arm:
+      type: "butterworth"
+      cutoff_freq: 3.0
+      order: 2
+
+safety:
+  enable_collision_check: true
+  collision_padding: 0.02
+  enable_joint_limits: true
+
+recorder:
+  enabled: true
+  save_dir: "recordings"
+  episode_prefix: "episode"
+  record_rate: 20.0
+  save_images: true
+  image_resolution: [960, 600]
+  compress_images: true
+  jpeg_quality: 90
+  auto_stop_on_estop: false
+  num_workers: 4
+
+  components:
+    left_arm: true
+    right_arm: true
+    head: false
+    head_left_rgb: false
+    head_right_rgb: false
+
+init_pos:
+  left_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  right_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

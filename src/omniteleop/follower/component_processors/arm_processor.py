@@ -3,7 +3,9 @@
 from typing import Dict, Any, List
 import numpy as np
 
-from omniteleop.follower.component_processors.base_processor import BaseComponentProcessor
+from omniteleop.follower.component_processors.base_processor import (
+    BaseComponentProcessor,
+)
 from omniteleop.follower.input_handlers.base_handler import (
     RobotCommand,
     CommandMode,
@@ -113,7 +115,9 @@ class ArmProcessor(BaseComponentProcessor):
             current_arm_pos = [
                 current_positions.get(name, 0) for name in self.joint_names
             ]
-            positions = [curr + delta for curr, delta in zip(current_arm_pos, positions)]
+            positions = [
+                curr + delta for curr, delta in zip(current_arm_pos, positions)
+            ]
 
         # Apply torso pitch compensation if enabled
         if self.compensate_torso_pitch:

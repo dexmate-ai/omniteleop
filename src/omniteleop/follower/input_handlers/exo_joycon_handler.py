@@ -103,7 +103,9 @@ class ExoJoyconHandler(BaseInputHandler):
 
         # Create publisher for recorder control
         recorder_topic = get_config().get_topic("recorder_control")
-        self.recorder_pub = self.node.create_publisher(recorder_topic, encoder=DictDataCodec.encode)
+        self.recorder_pub = self.node.create_publisher(
+            recorder_topic, encoder=DictDataCodec.encode
+        )
 
         resolved_joints = self.node.resolve_topic(joints_topic)
         resolved_joycon = self.node.resolve_topic(joycon_topic)
@@ -236,16 +238,20 @@ class ExoJoyconHandler(BaseInputHandler):
                 "metadata": {
                     "source": "joycon",
                     "timestamp": time.time_ns(),
-                }
+                },
             }
             try:
                 self.recorder_pub.publish(recording_msg)
-                logger.info(f"Published recording command: {recording_command} to recorder/control")
+                logger.info(
+                    f"Published recording command: {recording_command} to recorder/control"
+                )
                 logger.debug(f"Recording message content: {recording_msg}")
             except Exception as e:
                 logger.error(f"Failed to publish recording command: {e}")
         elif recording_command:
-            logger.warning(f"Recording command '{recording_command}' generated but no publisher available")
+            logger.warning(
+                f"Recording command '{recording_command}' generated but no publisher available"
+            )
 
         # Handle based on priority
         if robot_commands.priority == "base":

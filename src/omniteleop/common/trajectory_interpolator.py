@@ -24,9 +24,16 @@ class TrajectoryInterpolator:
     """
 
     __slots__ = (
-        'method', 'history_size', '_times', '_positions',
-        '_interpolators', '_interpolators_dirty', '_first_time',
-        '_prev_positions', '_prev_time', '_component_times'
+        "method",
+        "history_size",
+        "_times",
+        "_positions",
+        "_interpolators",
+        "_interpolators_dirty",
+        "_first_time",
+        "_prev_positions",
+        "_prev_time",
+        "_component_times",
     )
 
     def __init__(
@@ -123,8 +130,10 @@ class TrajectoryInterpolator:
                     continue
 
                 # Get timestamps specific to this component
-                component_times = np.array(list(self._component_times[component]), dtype=np.float64)
-                
+                component_times = np.array(
+                    list(self._component_times[component]), dtype=np.float64
+                )
+
                 # Normalize times relative to THIS component's first time (not global)
                 # This ensures each component is independent and survives deque wraparound
                 component_first_time = component_times[0]
@@ -139,19 +148,19 @@ class TrajectoryInterpolator:
                 if use_cubic:
                     # PCHIP for smooth C1 continuous interpolation
                     interpolators[component] = {
-                        'interpolator': PchipInterpolator(
+                        "interpolator": PchipInterpolator(
                             normalized_times,
                             positions,
                             axis=0,
                             extrapolate=False,
                         ),
-                        'first_time': component_first_time,
-                        'last_time': component_times[-1],
+                        "first_time": component_first_time,
+                        "last_time": component_times[-1],
                     }
                 else:
                     # Linear interpolation
                     interpolators[component] = {
-                        'interpolator': interp1d(
+                        "interpolator": interp1d(
                             normalized_times,
                             positions,
                             kind="linear",
@@ -159,8 +168,8 @@ class TrajectoryInterpolator:
                             bounds_error=False,
                             fill_value=(positions[0], positions[-1]),
                         ),
-                        'first_time': component_first_time,
-                        'last_time': component_times[-1],
+                        "first_time": component_first_time,
+                        "last_time": component_times[-1],
                     }
 
         except Exception:
@@ -195,7 +204,7 @@ class TrajectoryInterpolator:
 
         if self._interpolators is None or len(self._times) < 2:
             return None, None
-        
+
         # Pre-allocate result dictionaries
         positions = {}
         velocities = {} if compute_velocity else None
@@ -203,19 +212,19 @@ class TrajectoryInterpolator:
         try:
             for component, interp_data in self._interpolators.items():
                 # Extract interpolator and time range for this component
-                interp = interp_data['interpolator']
-                comp_first_time = interp_data['first_time']
-                comp_last_time = interp_data['last_time']
-                
+                interp = interp_data["interpolator"]
+                comp_first_time = interp_data["first_time"]
+                comp_last_time = interp_data["last_time"]
+
                 # Compute relative time normalized to THIS component's first time
                 relative_time = query_time - comp_first_time
                 comp_last_relative = comp_last_time - comp_first_time
-                
+
                 # Clamp to valid range for this component with small margin
                 min_margin = 0.001
                 upper_bound = max(comp_last_relative - min_margin, min_margin + 0.0001)
                 clamped_time = np.clip(relative_time, min_margin, upper_bound)
-                
+
                 # Interpolate position at clamped time
                 pos = interp(clamped_time)
                 positions[component] = pos
@@ -227,9 +236,11 @@ class TrajectoryInterpolator:
                         vel = interp(clamped_time, 1)
                     else:
                         # Finite difference using cached previous position
-                        if (self._prev_positions is not None and
-                            component in self._prev_positions and
-                            self._prev_time > 0):
+                        if (
+                            self._prev_positions is not None
+                            and component in self._prev_positions
+                            and self._prev_time > 0
+                        ):
                             # Use cached previous position from last interpolation call
                             dt = query_time - self._prev_time
                             if dt > 0:
@@ -253,7 +264,7 @@ class TrajectoryInterpolator:
 
             # Cache current positions and time for next iteration (linear only)
             if compute_velocity and self._interpolators:
-                first_interp = next(iter(self._interpolators.values()))['interpolator']
+                first_interp = next(iter(self._interpolators.values()))["interpolator"]
                 if not isinstance(first_interp, PchipInterpolator):
                     self._prev_positions = positions.copy()
                     self._prev_time = query_time

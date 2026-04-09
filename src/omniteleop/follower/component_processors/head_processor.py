@@ -6,7 +6,9 @@ import numpy as np
 from loguru import logger
 from dexmotion.utils import robot_utils
 
-from omniteleop.follower.component_processors.base_processor import BaseComponentProcessor
+from omniteleop.follower.component_processors.base_processor import (
+    BaseComponentProcessor,
+)
 from omniteleop.follower.input_handlers.base_handler import RobotCommand, CommandMode
 
 class HeadProcessor(BaseComponentProcessor):
@@ -87,7 +89,9 @@ class HeadProcessor(BaseComponentProcessor):
 
                 # Set head command output
                 command.output_components["head"] = {
-                    "pos": clipped_head_pos.tolist() if isinstance(clipped_head_pos, np.ndarray) else clipped_head_pos,
+                    "pos": clipped_head_pos.tolist()
+                    if isinstance(clipped_head_pos, np.ndarray)
+                    else clipped_head_pos,
                     "mode": CommandMode.ABSOLUTE.value,
                 }
                 return True

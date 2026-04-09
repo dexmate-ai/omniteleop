@@ -1,17 +1,17 @@
 """Hand component processor."""
 
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from dexmotion.utils import robot_utils
 
-from omniteleop.follower.component_processors.base_processor import BaseComponentProcessor
+from omniteleop.follower.component_processors.base_processor import (
+    BaseComponentProcessor,
+)
 from omniteleop.follower.input_handlers.base_handler import RobotCommand, CommandMode
 
 class HandProcessor(BaseComponentProcessor):
-    """Processes hand commands for left or right hand.
-
-    """
+    """Processes hand commands for left or right hand."""
 
     def __init__(self, side: str, config, motion_manager, robot_info, teleop_mode):
         """Initialize hand processor.

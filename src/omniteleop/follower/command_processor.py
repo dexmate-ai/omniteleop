@@ -44,7 +44,7 @@ from omniteleop.follower.input_handlers.base_handler import (
 from omniteleop.follower.input_handlers.exo_joycon_handler import ExoJoyconHandler
 from dexbot_utils import RobotInfo
 
-class CommandProcessor():
+class CommandProcessor:
     """Processes teleoperation commands with integrated safety validation.
 
     This class receives commands from various teleoperation input sources,
@@ -114,6 +114,13 @@ class CommandProcessor():
         # Get init positions based on robot type
         init_pos_config = self.config.get("init_pos", {})
 
+        # Store init positions for alignment check
+        self._init_pos_left_arm = init_pos_config.get("left_arm", [0.0] * 7)
+        self._init_pos_right_arm = init_pos_config.get("right_arm", [0.0] * 7)
+
+        # Max allowed difference (rad) between exo and init_pos before motion starts.
+        self._align_threshold = 1.0
+
         # Initialize arms with robot-type-specific positions
         self.motion_manager.left_arm.set_joint_pos(
             init_pos_config.get("left_arm", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
@@ -145,7 +152,14 @@ class CommandProcessor():
         self.exit_after_publish = False
         self._robot_joint_data_initialized = self.bypass_real_robot
         self._motion_control_started = self.bypass_real_robot
+        self._align_checked = self.bypass_real_robot
         self._last_safe_command: Optional[RobotCommand] = None
+
+        # Realignment tracking: when estop is released, re-check proximity
+        # to current robot joint positions before resuming motion.
+        self._estop_was_active = False
+        self._pending_realign = False
+        self._last_align_log: Dict[str, float] = {}  # suppress repeated align warnings
 
         # Set up subscribers and publishers through Dexcomm Node
         self._setup_communication()
@@ -164,46 +178,59 @@ class CommandProcessor():
     def _initialize_processors(self) -> None:
         """Initialize component processors based on robot capabilities."""
         self.processors = {}
-        
+
         # Arms - always present
-        self.processors['left_arm'] = ArmProcessor(
-            'left', self.config, self.motion_manager,
-            self.robot_info, self.teleop_mode
+        self.processors["left_arm"] = ArmProcessor(
+            "left", self.config, self.motion_manager, self.robot_info, self.teleop_mode
         )
-        self.processors['right_arm'] = ArmProcessor(
-            'right', self.config, self.motion_manager,
-            self.robot_info, self.teleop_mode
+        self.processors["right_arm"] = ArmProcessor(
+            "right", self.config, self.motion_manager, self.robot_info, self.teleop_mode
         )
 
         # Hands - check if component exists
-        if self.robot_info.has_component('left_hand'):
-            self.processors['left_hand'] = HandProcessor(
-                'left', self.config, self.motion_manager,
-                self.robot_info, self.teleop_mode
+        if self.robot_info.has_component("left_hand"):
+            self.processors["left_hand"] = HandProcessor(
+                "left",
+                self.config,
+                self.motion_manager,
+                self.robot_info,
+                self.teleop_mode,
             )
-        if self.robot_info.has_component('right_hand'):
-            self.processors['right_hand'] = HandProcessor(
-                'right', self.config, self.motion_manager,
-                self.robot_info, self.teleop_mode
+        if self.robot_info.has_component("right_hand"):
+            self.processors["right_hand"] = HandProcessor(
+                "right",
+                self.config,
+                self.motion_manager,
+                self.robot_info,
+                self.teleop_mode,
             )
 
         # Single-instance components - check if they exist on robot
         if self.robot_info.has_torso:
-            self.processors['torso'] = TorsoProcessor(
-                None, self.config, self.motion_manager,
-                self.robot_info, self.teleop_mode
+            self.processors["torso"] = TorsoProcessor(
+                None,
+                self.config,
+                self.motion_manager,
+                self.robot_info,
+                self.teleop_mode,
             )
         if self.robot_info.has_head:
-            self.processors['head'] = HeadProcessor(
-                None, self.config, self.motion_manager,
-                self.robot_info, self.teleop_mode
+            self.processors["head"] = HeadProcessor(
+                None,
+                self.config,
+                self.motion_manager,
+                self.robot_info,
+                self.teleop_mode,
             )
         if self.robot_info.has_chassis:
-            self.processors['chassis'] = ChassisProcessor(
-                None, self.config, self.motion_manager,
-                self.robot_info, self.teleop_mode
+            self.processors["chassis"] = ChassisProcessor(
+                None,
+                self.config,
+                self.motion_manager,
+                self.robot_info,
+                self.teleop_mode,
             )
-        
+
         logger.debug(f"Initialized processors: {list(self.processors.keys())}")
 
     def _create_input_handler(self) -> Optional[BaseInputHandler]:
@@ -266,7 +293,8 @@ class CommandProcessor():
         )
         commands_topic = self.config.get_topic("robot_commands")
         self.safe_command_pub = self.node.create_publisher(
-            commands_topic, encoder=DictDataCodec.encode,
+            commands_topic,
+            encoder=DictDataCodec.encode,
         )
 
     def _on_robot_joints_received(self, robot_joints_data: Dict[str, Any]) -> None:
@@ -360,10 +388,15 @@ class CommandProcessor():
             # Emergency stop is active, don't start motion control
             pass
         elif not self._motion_control_started:
-            # No emergency stop, can start motion control
-            self._motion_control_started = True
-            self._sync_motion_manager_to_robot_state()
-            logger.info("Motion control started")
+            # Alignment is only checked on the very first start.
+            # After that (e.g. estop toggle), motion control resumes immediately.
+            if self._align_checked or self._is_exo_aligned_with_init_pos(command):
+                self._motion_control_started = True
+                self._align_checked = True
+                self._sync_motion_manager_to_robot_state()
+                logger.success("Exo joints aligned — motion control started.")
+            else:
+                command.safety_flags.emergency_stop = True
 
         # Special case: Dual-arm EE pose requires both arms together
         if self._should_process_dual_arm_ee_pose(command):
@@ -398,17 +431,21 @@ class CommandProcessor():
         Returns:
             True if both arms have EE_POSE command type
         """
-        if 'left_arm' not in command.input_components or 'right_arm' not in command.input_components:
+        if (
+            "left_arm" not in command.input_components
+            or "right_arm" not in command.input_components
+        ):
             return False
 
-        left_data = command.input_components['left_arm']
-        right_data = command.input_components['right_arm']
+        left_data = command.input_components["left_arm"]
+        right_data = command.input_components["right_arm"]
 
-        left_type = left_data.get('command_type', ArmCommandType.JOINT)
-        right_type = right_data.get('command_type', ArmCommandType.JOINT)
+        left_type = left_data.get("command_type", ArmCommandType.JOINT)
+        right_type = right_data.get("command_type", ArmCommandType.JOINT)
 
-        return (left_type == ArmCommandType.EE_POSE and
-                right_type == ArmCommandType.EE_POSE)
+        return (
+            left_type == ArmCommandType.EE_POSE and right_type == ArmCommandType.EE_POSE
+        )
 
     def _process_dual_arm_ee_pose(self, command: RobotCommand) -> None:
         """Process dual-arm end-effector pose commands with IK.
@@ -418,16 +455,16 @@ class CommandProcessor():
         Args:
             command: RobotCommand with EE pose targets for both arms
         """
-        left_arm_data = command.input_components.pop('left_arm')
-        right_arm_data = command.input_components.pop('right_arm')
+        left_arm_data = command.input_components.pop("left_arm")
+        right_arm_data = command.input_components.pop("right_arm")
 
-        if 'pose' not in left_arm_data or 'pose' not in right_arm_data:
+        if "pose" not in left_arm_data or "pose" not in right_arm_data:
             return
 
         # Extract poses
-        left_pose = np.array(left_arm_data.get('pose', np.eye(4)))
-        right_pose = np.array(right_arm_data.get('pose', np.eye(4)))
-        target_poses = {'L_ee': left_pose, 'R_ee': right_pose}
+        left_pose = np.array(left_arm_data.get("pose", np.eye(4)))
+        right_pose = np.array(right_arm_data.get("pose", np.eye(4)))
+        target_poses = {"L_ee": left_pose, "R_ee": right_pose}
 
         # Solve IK
         with suppress_loguru_module("dexmotion", enabled=True):
@@ -439,8 +476,8 @@ class CommandProcessor():
             return
 
         # Get arm processors for safety limiting
-        left_processor = self.processors['left_arm']
-        right_processor = self.processors['right_arm']
+        left_processor = self.processors["left_arm"]
+        right_processor = self.processors["right_arm"]
 
         # Extract and limit joint positions
         left_positions = [solution[f"L_arm_j{i + 1}"] for i in range(7)]
@@ -454,13 +491,13 @@ class CommandProcessor():
         right_processor.apply_positions(safe_right)
 
         # Update command
-        command.output_components['left_arm'] = {
-            'pos': safe_left.tolist(),
-            'mode': CommandMode.ABSOLUTE.value,
+        command.output_components["left_arm"] = {
+            "pos": safe_left.tolist(),
+            "mode": CommandMode.ABSOLUTE.value,
         }
-        command.output_components['right_arm'] = {
-            'pos': safe_right.tolist(),
-            'mode': CommandMode.ABSOLUTE.value,
+        command.output_components["right_arm"] = {
+            "pos": safe_right.tolist(),
+            "mode": CommandMode.ABSOLUTE.value,
         }
 
     def publish_command(self, command: RobotCommand) -> None:
@@ -523,19 +560,21 @@ class CommandProcessor():
         # Convert numpy types to native Python types (DictDataCodec uses orjson
         # without OPT_SERIALIZE_NUMPY, so numpy types aren't auto-handled)
         command_dict = self._to_json_serializable(command_dict)
-        
+
         # Publish through Dexcomm
         self.safe_command_pub.publish(command_dict)
 
     @staticmethod
     def _to_json_serializable(obj: Any) -> Any:
         """Recursively convert numpy types to native Python types.
-        
+
         DictDataCodec uses orjson without OPT_SERIALIZE_NUMPY flag,
         so numpy scalars (float64, int64, etc.) cause TypeError.
         """
         if isinstance(obj, dict):
-            return {k: CommandProcessor._to_json_serializable(v) for k, v in obj.items()}
+            return {
+                k: CommandProcessor._to_json_serializable(v) for k, v in obj.items()
+            }
         elif isinstance(obj, list):
             return [CommandProcessor._to_json_serializable(item) for item in obj]
         elif isinstance(obj, np.ndarray):
@@ -545,6 +584,48 @@ class CommandProcessor():
         elif isinstance(obj, np.bool_):
             return bool(obj)
         return obj
+
+    def _is_exo_aligned_with_init_pos(self, command: RobotCommand) -> bool:
+        """Checks whether exo arm joints are within threshold of the config init_pos.
+
+        Only runs when teleop_mode is 'exo_joycon'. For other modes (e.g. VR)
+        alignment is not required and this returns True immediately.
+
+        Args:
+            command: Current RobotCommand containing exo input_components.
+
+        Returns:
+            True if aligned (or mode doesn't require check), False otherwise.
+        """
+        if self.teleop_mode != "exo_joycon":
+            return True
+
+        checks = [
+            ("left_arm", self._init_pos_left_arm),
+            ("right_arm", self._init_pos_right_arm),
+        ]
+        for arm_name, init_pos in checks:
+            arm_data = command.input_components.get(arm_name, {})
+            positions = arm_data.get("pos", [])
+            if not positions:
+                continue
+            for i, (exo_val, init_val) in enumerate(zip(positions, init_pos)):
+                diff = abs(exo_val - init_val)
+                if diff > self._align_threshold:
+                    key = f"{arm_name}_{i}"
+                    prev = self._last_align_log.get(key, -999)
+                    if (
+                        abs(diff - prev) > 0.01
+                    ):  # only log when value changes meaningfully
+                        logger.warning(
+                            f"[ALIGN] {arm_name} joint {i + 1} not aligned: "
+                            f"exo={exo_val:.3f} init={init_val:.3f} diff={diff:.3f} "
+                            f"(threshold {self._align_threshold})"
+                        )
+                        self._last_align_log[key] = diff
+                    return False
+        self._last_align_log.clear()
+        return True
 
     def _sync_motion_manager_to_robot_state(self) -> None:
         """Synchronize motion manager with actual robot joint positions.
@@ -690,6 +771,7 @@ def main(
     # Force exit to ensure all threads terminate
     if exit_requested:
         import os
+
         logger.info("Forcing process exit due to exit request")
         os._exit(0)  # Force immediate exit without cleanup (all threads killed)
 

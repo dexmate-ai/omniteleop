@@ -19,7 +19,7 @@ from dexcomm.utils import RateLimiter
 from omniteleop.common import get_config
 from omniteleop.common.logging import setup_logging
 
-class ReplayRecorder():
+class ReplayRecorder:
     """Simple replay system for recorded MDP data.
 
     This class handles replaying previously recorded robot trajectories by
@@ -307,7 +307,9 @@ class ReplayRecorder():
         # Replay transitions (start from second transition)
         transitions_published = self._replay_transitions(start_index=1)
 
-        logger.info(f"✅ Replay completed! Published {transitions_published} transitions")
+        logger.info(
+            f"✅ Replay completed! Published {transitions_published} transitions"
+        )
         self.running = False
 
     def stop(self) -> None:

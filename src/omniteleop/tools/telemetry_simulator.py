@@ -17,7 +17,7 @@ from omniteleop.common import get_config
 from dexcomm.codecs import DictDataCodec
 from omniteleop.common.logging import setup_logging
 
-class TelemetrySimulator():
+class TelemetrySimulator:
     """Simulates robot telemetry data for debugging purposes."""
 
     def __init__(
@@ -103,7 +103,8 @@ class TelemetrySimulator():
         """Initialize publisher."""
         # Create telemetry publisher
         self.telemetry_publisher = self.node.create_publisher(
-            self.telemetry_topic, encoder=DictDataCodec.encode,
+            self.telemetry_topic,
+            encoder=DictDataCodec.encode,
         )
 
     def _generate_positions(self, component: str, t: float) -> np.ndarray:

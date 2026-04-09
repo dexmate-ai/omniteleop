@@ -19,7 +19,7 @@ from dexcomm import Node
 from dexcomm.codecs import DictDataCodec
 from loguru import logger
 
-class RerunTelemetryViewer():
+class RerunTelemetryViewer:
     """Real-time telemetry visualization using Rerun."""
 
     def __init__(
@@ -107,7 +107,7 @@ class RerunTelemetryViewer():
             RAW: tuple = (0, 212, 255)
             FILTERED: tuple = (255, 75, 193)
             ROBOT: tuple = (255, 213, 0)
-            DYN: tuple = (0, 255, 0) # Green for DYN
+            DYN: tuple = (0, 255, 0)  # Green for DYN
             RAW_VEL: tuple = (100, 180, 255)  # Light blue for raw velocity
             FILTERED_VEL: tuple = (255, 150, 220)  # Light pink for filtered velocity
             ROBOT_VEL: tuple = (255, 240, 100)  # Light yellow for actual velocity
@@ -135,26 +135,32 @@ class RerunTelemetryViewer():
             n_joints = self.component_joints.get(comp, 0)
             position_views = []
             velocity_views = []
-            
+
             for i in range(n_joints):
                 joint_origin = "/"
-                
+
                 # Position paths
                 raw_path = f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.RAW}"
-                filtered_path = f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.FILTERED}"
+                filtered_path = (
+                    f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.FILTERED}"
+                )
                 robot_path = f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.ROBOT}"
-                
+
                 # Velocity paths
                 raw_vel_path = f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.RAW_VEL}"
-                filtered_vel_path = f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.FILTERED_VEL}"
-                robot_vel_path = f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.ROBOT_VEL}"
-                
+                filtered_vel_path = (
+                    f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.FILTERED_VEL}"
+                )
+                robot_vel_path = (
+                    f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.ROBOT_VEL}"
+                )
+
                 # Add DYN path for left_arm and right_arm (position only)
                 pos_contents = [raw_path, filtered_path, robot_path]
                 if comp in ["left_arm", "right_arm"]:
                     dyn_path = f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.DYN}"
                     pos_contents.append(dyn_path)
-                
+
                 # Position view
                 position_views.append(
                     rrb.TimeSeriesView(
@@ -163,7 +169,7 @@ class RerunTelemetryViewer():
                         contents=pos_contents,
                     )
                 )
-                
+
                 # Velocity view
                 vel_contents = [raw_vel_path, filtered_vel_path, robot_vel_path]
                 velocity_views.append(
@@ -181,7 +187,7 @@ class RerunTelemetryViewer():
                     contents=[
                         rrb.Grid(name="Positions", contents=position_views),
                         rrb.Grid(name="Velocities", contents=velocity_views),
-                    ]
+                    ],
                 )
             )
 
@@ -277,7 +283,7 @@ class RerunTelemetryViewer():
                         rr.SeriesLines(colors=list(self.SERIES_COLORS.ROBOT)),
                         static=True,
                     )
-                    
+
                     # Velocity series
                     rr.log(
                         f"telemetry/{comp}/joint_{i}/{self.SERIES_KEYS.RAW_VEL}",
@@ -308,7 +314,7 @@ class RerunTelemetryViewer():
                         rr.SeriesLines(colors=list(self.SERIES_COLORS.ROBOT_VEL)),
                         static=True,
                     )
-                    
+
                     # Add DYN series for left_arm and right_arm (position only)
                     if comp in ["left_arm", "right_arm"]:
                         rr.log(
@@ -376,7 +382,7 @@ class RerunTelemetryViewer():
 
     def _on_exo_joints(self, msg: Dict[str, Any]):
         """Handle incoming exo joints data.
-        
+
         Args:
             msg: Exo joints message with left_arm_pos and right_arm_pos arrays.
         """
@@ -421,7 +427,10 @@ class RerunTelemetryViewer():
             if isinstance(robot_state, dict):
                 if "positions" in robot_state and component in robot_state["positions"]:
                     robot_pos = np.array(robot_state["positions"][component])
-                if "velocities" in robot_state and component in robot_state["velocities"]:
+                if (
+                    "velocities" in robot_state
+                    and component in robot_state["velocities"]
+                ):
                     robot_vel = np.array(robot_state["velocities"][component])
                 # Backward compatibility: old flat structure
                 elif component in robot_state and "positions" not in robot_state:

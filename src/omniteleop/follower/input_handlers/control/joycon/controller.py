@@ -61,7 +61,9 @@ class JoyConController(AbstractController):
         self.estop_active = True  # Start with estop active for safety
         self.exit_requested = False
         self.recording_active = False  # Track recording state
-        self._last_recording_state = False  # Track previous recording state for change detection
+        self._last_recording_state = (
+            False  # Track previous recording state for change detection
+        )
 
         # Statistics
         self.stats = {
@@ -83,9 +85,10 @@ class JoyConController(AbstractController):
         torso_config = self.config.get("torso", {})
 
         hands_config = self.config.get("hands", {})
-        
+
         # Determine hand type from ROBOT_CONFIG env var
         import os
+
         robot_config = os.environ.get("ROBOT_CONFIG", "vega_1_f5d6")
         if "gripper" in robot_config:
             hand_type = "gripper"
@@ -93,11 +96,11 @@ class JoyConController(AbstractController):
             hand_type = "hand_f5d6"
         else:
             hand_type = "none"
-        
+
         # Get left and right configurations directly from hands config (flat structure)
         left_config = hands_config.get("left", {})
         right_config = hands_config.get("right", {})
-        
+
         # Add type and sensitivity to each config for hand controller
         left_config["type"] = hand_type
         right_config["type"] = hand_type
@@ -307,12 +310,16 @@ class JoyConController(AbstractController):
             "left_stick": left_buttons.get("stick", False),
             "left_l": left_buttons.get("l", False),
             "left_zl": left_buttons.get("zl", False),
-            "left_minus": left_buttons.get("minus", False),  # Minus button for recording combo
+            "left_minus": left_buttons.get(
+                "minus", False
+            ),  # Minus button for recording combo
             "left_capture": left_buttons.get("capture", False),
             "right_stick": right_buttons.get("stick", False),
             "right_r": right_buttons.get("r", False),
             "right_zr": right_buttons.get("zr", False),
-            "right_plus": right_buttons.get("plus", False),  # Plus button for recording combo
+            "right_plus": right_buttons.get(
+                "plus", False
+            ),  # Plus button for recording combo
             "right_home": right_buttons.get("home", False),
         }
 
@@ -356,8 +363,10 @@ class JoyConController(AbstractController):
         # Process mode toggles based on button events
         # We check for button press events to toggle modes
         # Check if both +/- are pressed (head control combo), if so don't toggle base
-        both_plus_minus_pressed = raw_states.get("left_minus", False) and raw_states.get("right_plus", False)
-        
+        both_plus_minus_pressed = raw_states.get(
+            "left_minus", False
+        ) and raw_states.get("right_plus", False)
+
         if not both_plus_minus_pressed:
             if "left_minus" in events and events["left_minus"] == ButtonEvent.PRESSED:
                 self._toggle_mode("base")
@@ -372,9 +381,13 @@ class JoyConController(AbstractController):
         # Check for fine adjustment toggle (but avoid conflict with recording combo)
         # Only toggle fine adjustment if not both L and R are pressed (recording combo)
         left_l_pressed = "left_l" in events and events["left_l"] == ButtonEvent.PRESSED
-        right_r_pressed = "right_r" in events and events["right_r"] == ButtonEvent.PRESSED
-        both_lr_pressed = raw_states.get("left_l", False) and raw_states.get("right_r", False)
-        
+        right_r_pressed = (
+            "right_r" in events and events["right_r"] == ButtonEvent.PRESSED
+        )
+        both_lr_pressed = raw_states.get("left_l", False) and raw_states.get(
+            "right_r", False
+        )
+
         if left_l_pressed and not both_lr_pressed:
             self._toggle_mode("fine")
         elif right_r_pressed and not both_lr_pressed:
@@ -494,7 +507,7 @@ class JoyConController(AbstractController):
 
     def get_recording_command(self) -> Optional[str]:
         """Get the recording command to send based on current state.
-        
+
         Returns:
             "start" if recording should start, "stop" if recording should stop, None otherwise
         """
@@ -502,5 +515,5 @@ class JoyConController(AbstractController):
         if self._last_recording_state != self.recording_active:
             self._last_recording_state = self.recording_active
             return "start" if self.recording_active else "stop"
-        
+
         return None

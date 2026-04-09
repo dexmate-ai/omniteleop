@@ -5,7 +5,8 @@ import os
 import sys
 import time
 import numpy as np
-from typing import Optional, Tuple, Dict, List
+import ruckig
+from typing import Optional, Dict, List
 import tyro
 from enum import Enum
 
@@ -18,6 +19,10 @@ from omniteleop.common.logging import setup_logging
 from omniteleop.common.debug_display import get_debug_display
 from omniteleop.common.filters import MultiChannelFilter
 from omniteleop.common.trajectory_interpolator import TrajectoryInterpolator
+from omniteleop.common.ruckig_trajectory import (
+    RuckigArmTrajectoryGenerator,
+    RuckigTorsoTrajectoryGenerator,
+)
 from loguru import logger
 import threading
 from dexbot_utils import RobotInfo
@@ -28,7 +33,7 @@ class RobotMode(Enum):
     STOP = "stop"
     EXIT = "exit"
 
-class RobotController():
+class RobotController:
     """Robot controller with integrated motion interpolation and hardware control."""
 
     def __init__(
@@ -105,16 +110,11 @@ class RobotController():
         self.current_state = {}  # {component: {'pos': [...], 'vel': [...]}}
 
         # Components that need interpolation
-        self.interpolated_components = {
-            "left_arm",
-            "right_arm",
-            "right_hand",
-            "left_hand",
-        }
+        self.interpolated_components = {"left_arm", "right_arm"}
         # Add torso only if robot has torso
         if self.has_torso:
             self.interpolated_components.add("torso")
-        
+
         # Components that are passed through directly
         self.direct_components = {"head"}
         # Add chassis only if robot has base
@@ -135,7 +135,12 @@ class RobotController():
         elif "f5d6" in robot_config:
             self.hand_type = "f5d6"
         else:
-            self.hand_type = None  # No hands (e.g., vega_1, vega_1u)
+            self.hand_type = None  # No hands (e.g., vega_1, vega_1p, vega_1u)
+
+        # Add hands to interpolated components only if robot has hands
+        if self.hand_type is not None:
+            self.direct_components.add("left_hand")
+            self.direct_components.add("right_hand")
 
         # Log filter configuration
         if filter_config:
@@ -151,6 +156,11 @@ class RobotController():
 
         # Store home positions for reuse
         self.home_positions = {}
+
+        # Ruckig trajectory generators (initialized after home positions are known)
+        self.ruckig_generators: Dict[
+            str, RuckigArmTrajectoryGenerator | RuckigTorsoTrajectoryGenerator
+        ] = {}
 
         self._robot_mode = None
         self._is_first_command = True
@@ -188,7 +198,8 @@ class RobotController():
         # Initialize joint feedback publisher
         joint_topic = self.config.get_topic("robot_joints")
         self.joint_publisher = self.node.create_publisher(
-            joint_topic, encoder=DictDataCodec.encode,
+            joint_topic,
+            encoder=DictDataCodec.encode,
         )
         logger.info(
             f"Publishing robot joints to {self.node.resolve_topic(joint_topic)} "
@@ -199,7 +210,8 @@ class RobotController():
         if self.publish_telemetry:
             telemetry_topic = self.config.get_topic("telemetry")
             self.telemetry_publisher = self.node.create_publisher(
-                telemetry_topic, encoder=DictDataCodec.encode,
+                telemetry_topic,
+                encoder=DictDataCodec.encode,
             )
             logger.info(
                 f"Publishing telemetry to {self.node.resolve_topic(telemetry_topic)}"
@@ -209,12 +221,94 @@ class RobotController():
         logger.info("Initializing robot hardware...")
         self.robot = Robot()
 
-        # Set robot to home position
-        self._set_home_position()
+        # Parse home positions from config (no hardware movement)
+        self._parse_home_positions()
+
+        if self.interpolation_method == "ruckig":
+            self._init_ruckig_generators()
+            self._move_to_home_with_ruckig()
+        else:
+            self._move_to_home()
 
         self._robot_mode = RobotMode.RUNNING
 
         logger.success("Robot controller initialized")
+
+    def _init_ruckig_generators(self) -> None:
+        """Initialize per-component ruckig trajectory generators from home positions."""
+        control_cycle = 1.0 / self.control_rate
+
+        for component, home_pos in self.home_positions.items():
+            qpos = np.array(home_pos)
+            if component in {"left_arm", "right_arm"}:
+                self.ruckig_generators[component] = RuckigArmTrajectoryGenerator(
+                    init_qpos=qpos,
+                    control_cycle=control_cycle,
+                    safety_factor=1.0,
+                )
+            elif component == "torso":
+                self.ruckig_generators[component] = RuckigTorsoTrajectoryGenerator(
+                    init_qpos=qpos,
+                    control_cycle=control_cycle,
+                )
+            # head, hands, chassis are passed through directly
+
+        logger.info(
+            f"Ruckig generators initialized for: {list(self.ruckig_generators.keys())}"
+        )
+
+    def _move_to_home_with_ruckig(self) -> None:
+        """Drive arms and torso to home position using ruckig.
+
+        Seeds each generator from actual hardware position, sets home as target,
+        then steps the ruckig loop until ruckig reports Finished for all components.
+        """
+        rate_limiter = RateLimiter(self.control_rate)
+
+        # Seed generators from actual robot positions and set home as target
+        actual_positions = self._get_robot_joint_pos()
+        for component, gen in self.ruckig_generators.items():
+            current = np.array(
+                actual_positions.get(component, self.home_positions[component])
+            )
+            target = np.array(self.home_positions[component])
+            gen.reset(current)
+            gen.inp.target_position = target.tolist()
+            gen.inp.target_velocity = [0.0] * gen.dof
+            gen.inp.target_acceleration = [0.0] * gen.dof
+
+        logger.info("Moving to home position with ruckig...")
+        self.robot.estop.deactivate()
+        time.sleep(2.0)
+
+        # Track per-component completion
+        finished = {comp: False for comp in self.ruckig_generators}
+
+        while not all(finished.values()):
+            for component, gen in self.ruckig_generators.items():
+                if finished[component]:
+                    continue
+
+                result = gen.otg.update(gen.inp, gen.out)
+                gen.out.pass_to_input(gen.inp)
+                cmd_pos = np.array(gen.out.new_position)
+
+                if component == "torso":
+                    self.robot.torso.set_joint_pos(cmd_pos, wait_time=0.0)
+                elif component in {"left_arm", "right_arm"}:
+                    getattr(self.robot, component).set_joint_pos(cmd_pos, wait_time=0.0)
+
+                if result != ruckig.Result.Working:
+                    finished[component] = True
+
+            rate_limiter.sleep()
+
+        # Open hands only if robot has hands
+        if self.hand_type is not None:
+            self.robot.left_hand.open_hand()
+            self.robot.right_hand.open_hand()
+        self.robot.estop.activate()
+        logger.info("Home position reached via ruckig")
 
     def _get_robot_joint_pos(self) -> Dict[str, List[float]]:
         """Get robot joint positions.
@@ -227,15 +321,16 @@ class RobotController():
             "right_arm": self.robot.right_arm.get_joint_pos().tolist(),
             "head": self.robot.head.get_joint_pos().tolist(),
         }
-        
+
         # Add torso only if robot has torso
         if self.has_torso:
             positions["torso"] = self.robot.torso.get_joint_pos().tolist()
-        
-        # Add hands based on hand type
-        positions["left_hand"] = self.robot.left_hand.get_joint_pos().tolist()
-        positions["right_hand"] = self.robot.right_hand.get_joint_pos().tolist()
-        
+
+        # Add hands only if robot has hands
+        if self.hand_type is not None:
+            positions["left_hand"] = self.robot.left_hand.get_joint_pos().tolist()
+            positions["right_hand"] = self.robot.right_hand.get_joint_pos().tolist()
+
         return positions
 
     def _get_robot_joint_vel(self) -> Dict[str, List[float]]:
@@ -249,11 +344,11 @@ class RobotController():
             "right_arm": self.robot.right_arm.get_joint_vel().tolist(),
             "head": self.robot.head.get_joint_vel().tolist(),
         }
-        
+
         # Add torso only if robot has torso
         if self.has_torso:
             velocities["torso"] = self.robot.torso.get_joint_vel().tolist()
-               
+
         return velocities
 
     def _parse_init_pos(self, component, init_pos: str | list[float]) -> list[float]:
@@ -271,16 +366,10 @@ class RobotController():
         else:
             return init_pos
 
-    def _set_home_position(self) -> None:
-        """Set robot to home position and store positions for reuse.
-
-        Loads home positions from config, stores them for later use,
-        and moves the robot to the home configuration.
-        """
-        # Get init_pos config
+    def _parse_home_positions(self) -> None:
+        """Parse home positions from config and store for reuse. No hardware movement."""
         init_pos_config = self.config.get("init_pos", {})
-        
-        # Parse and store home positions for arms from robot model section
+
         for arm in ["left_arm", "right_arm"]:
             if hasattr(self.robot, arm):
                 init_pos = init_pos_config.get(arm)
@@ -289,12 +378,11 @@ class RobotController():
                     self.home_positions[arm] = self._parse_init_pos(
                         robot_component, init_pos
                     )
-        
-        # Parse and store home positions for other components
+
         other_components = ["head", "left_hand", "right_hand"]
         if self.has_torso:
             other_components.insert(0, "torso")
-        
+
         for component in other_components:
             if hasattr(self.robot, component):
                 init_pos = self.config.get_init_pos(component)
@@ -304,11 +392,14 @@ class RobotController():
                         robot_component, init_pos
                     )
 
-        # Now move to home position using the stored values
+        logger.debug(f"Home positions parsed: {list(self.home_positions.keys())}")
+
+    def _move_to_home(self) -> None:
+        """Move robot to home position using hardware set_joint_pos with wait_time."""
         self.robot.estop.deactivate()
         time.sleep(0.1)
 
-        # Move torso first if available and robot has torso
+        # Move torso first if available
         if self.has_torso and "torso" in self.home_positions:
             self.robot.torso.set_joint_pos(
                 self.home_positions["torso"],
@@ -326,34 +417,11 @@ class RobotController():
             self.robot.set_joint_pos(arm_head_pose, wait_time=9.0, exit_on_reach=True)
             logger.info("Robot moved to home position")
 
-        # Open hands
-        self.robot.left_hand.open_hand()
-        self.robot.right_hand.open_hand()
+        # Open hands only if robot has hands
+        if self.hand_type is not None:
+            self.robot.left_hand.open_hand()
+            self.robot.right_hand.open_hand()
         self.robot.estop.activate()
-
-        logger.debug(f"Home positions stored: {list(self.home_positions.keys())}")
-
-    def return_to_home(self, components: Optional[List[str]] = None):
-        """Return robot to home position for specified components.
-
-        Args:
-            components: List of components to move home. If None, moves all.
-        """
-        if not self.home_positions:
-            logger.warning("No home positions stored")
-            return
-
-        if components is None:
-            components = list(self.home_positions.keys())
-
-        pose_dict = {}
-        for comp in components:
-            if comp in self.home_positions:
-                pose_dict[comp] = self.home_positions[comp]
-
-        if pose_dict:
-            self.robot.set_joint_pos(pose_dict, wait_time=5.0, exit_on_reach=True)
-            logger.info(f"Returned to home position: {list(pose_dict.keys())}")
 
     def _on_safe_command(self, data: Dict) -> None:
         """Handle incoming safe command.
@@ -431,7 +499,9 @@ class RobotController():
         output_components = {}
 
         # Handle interpolation based on method
-        if self.interpolation_method == "none" or self._is_first_command:
+        if self.interpolation_method == "none" or (
+            self._is_first_command and self.interpolation_method != "ruckig"
+        ):
             # No interpolation: pass through command directly
             for component, data in cmd_components.items():
                 formatted_data = {}
@@ -444,6 +514,37 @@ class RobotController():
                     if key not in ["pos", "vel"]:
                         formatted_data[key] = data[key]
                 output_components[component] = formatted_data
+        elif self.interpolation_method == "ruckig":
+            # On first command, reset generators to incoming positions to avoid jumps
+            if self._is_first_command:
+                for component, gen in self.ruckig_generators.items():
+                    if (
+                        component in cmd_components
+                        and "pos" in cmd_components[component]
+                    ):
+                        gen.reset(np.array(cmd_components[component]["pos"]))
+
+            # Ruckig jerk-limited interpolation for arms and torso
+            for component, gen in self.ruckig_generators.items():
+                target = None
+                if component in cmd_components and "pos" in cmd_components[component]:
+                    target = np.array(cmd_components[component]["pos"])
+                pos, vel = gen.update(target)
+                output_components[component] = {"pos": pos, "vel": vel}
+
+            # Pass through all other components directly (head, hands, chassis)
+            ruckig_components = set(self.ruckig_generators.keys())
+            for component, data in cmd_components.items():
+                if component not in ruckig_components:
+                    formatted_data = {}
+                    if "pos" in data:
+                        formatted_data["pos"] = np.array(data["pos"])
+                    if "vel" in data:
+                        formatted_data["vel"] = np.array(data["vel"])
+                    for key in data:
+                        if key not in ["pos", "vel"]:
+                            formatted_data[key] = data[key]
+                    output_components[component] = formatted_data
         else:
             # Use interpolator for smooth trajectories
             positions, velocities = self.interpolator.interpolate(
@@ -469,8 +570,8 @@ class RobotController():
                             formatted_data[key] = value
                     output_components[component] = formatted_data
 
-        # Apply smoothing filter to output components (filter decides per-component)
-        if output_components:
+        # Apply smoothing filter only for linear/cubic interpolation
+        if output_components and self.interpolation_method in ("linear", "cubic"):
             output_components = self.filter.apply(output_components)
 
         # Update current state
@@ -551,7 +652,7 @@ class RobotController():
             if self.robot:
                 robot_state_pos = self._get_robot_joint_pos()
                 robot_state_vel = self._get_robot_joint_vel()
-                
+
                 # Combine positions and velocities into robot_state
                 telemetry_data["robot_state"] = {
                     "positions": {
@@ -561,7 +662,7 @@ class RobotController():
                     "velocities": {
                         k: v.tolist() if isinstance(v, np.ndarray) else v
                         for k, v in robot_state_vel.items()
-                    }
+                    },
                 }
 
             # Get raw command (before filtering) from latest_command
@@ -619,11 +720,18 @@ class RobotController():
         Args:
             torso_data: Dictionary with position and velocity.
         """
-        self.robot.torso.set_joint_pos_vel(
-            torso_data["pos"],
-            torso_data["vel"],
-            wait_time=0.0,
-        )
+        if self.interpolation_method == "none":
+            self.robot.torso.set_joint_pos_vel(
+                torso_data["pos"],
+                0.2,
+                wait_time=0.0,
+            )
+        else:
+            self.robot.torso.set_joint_pos_vel(
+                torso_data["pos"],
+                torso_data["vel"],
+                wait_time=0.0,
+            )
 
     def _send_head_command(self, head_data: Dict):
         """Send command to head joints.
@@ -649,7 +757,7 @@ class RobotController():
             if "pos" in arm_data:
                 positions = arm_data["pos"]
                 if "vel" in arm_data and self.use_velocity_control:
-                    velocities = arm_data["vel"] 
+                    velocities = arm_data["vel"]
                     arm.set_joint_pos_vel(positions, velocities)
                 else:
                     arm.set_joint_pos(positions, wait_time=0.0)
@@ -681,7 +789,7 @@ class RobotController():
             feedback_msg = {
                 "timestamp_ns": time.time_ns(),
                 "joints": joint_positions,
-                "velocities": joint_velocities
+                "velocities": joint_velocities,
             }
 
             # Publish via Zenoh
@@ -780,7 +888,7 @@ def main(
 
     Args:
         namespace: Optional namespace prefix.
-        interpolation_method: Method for interpolation ('none', 'linear', 'cubic').
+        interpolation_method: Method for interpolation ('none', 'linear', 'cubic', 'ruckig').
         use_velocity_control: Enable velocity control for smoother motion.
         debug: Enable debug output.
         publish_telemetry: Enable telemetry publishing for visualization.

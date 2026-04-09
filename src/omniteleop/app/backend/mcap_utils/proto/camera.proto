@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package robot_teleop;
+
+// Camera Image Message
+message CameraImage {
+    string encoding = 1;  // "rgb8"
+    uint32 height = 2;    // 600 (or 400 based on webdataset schema)
+    uint32 width = 3;     // 960 (or 640 based on webdataset schema)
+    bytes data = 4;       // uint8[H, W, 3] as raw bytes
+}
+

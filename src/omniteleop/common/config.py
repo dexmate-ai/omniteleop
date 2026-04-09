@@ -32,18 +32,22 @@ class RobotConfig(dict):
             robot_config = os.environ.get("ROBOT_CONFIG", "vega_1_f5d6")
             config_filename = f"{robot_config}.yaml"
             config_path = LIB_PATH / "configs" / config_filename
-            
+
             if not config_path.exists():
                 # List available configs
                 configs_dir = LIB_PATH / "configs"
-                available = [f.stem for f in configs_dir.glob("*.yaml") if f.stem != "vr_robot_config"]
+                available = [
+                    f.stem
+                    for f in configs_dir.glob("*.yaml")
+                    if f.stem != "vr_robot_config"
+                ]
                 raise FileNotFoundError(
                     f"Configuration file not found: {config_path}\n"
                     f"ROBOT_CONFIG='{robot_config}' is not valid.\n"
                     f"Available configs: {available}\n"
                     "Set ROBOT_CONFIG to one of the available options."
                 )
-            
+
             logger.info(f"Using config for ROBOT_CONFIG={robot_config}: {config_path}")
 
         self.config_path = Path(config_path)

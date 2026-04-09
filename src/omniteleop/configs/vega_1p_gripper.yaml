@@ -67,13 +67,50 @@ input_handlers:
         poses:
           open: [0.78]
           close: [0.0]
+  # VR device configuration (used when teleop_mode: "vr")
+  vr:
+    socket:
+      server_url: "http://localhost:8080"
+    device_type: "quest3"
+    tracking_space: "standing"
+    position_scale: 1.0
+    position_offset: [0.0, 0.0, 0.0]
+    use_relative_control: true
+    sync_interval: 2.0
+
+    # Base control settings (hold left grip trigger)
+    base:
+      linear_velocity: 0.5
+      angular_velocity: 1.0
+
+    # Torso control settings (hold right grip trigger)
+    torso:
+      sensitivity: 0.01
+
+    # Hand configuration (gripper) - only open/close poses for VR trigger interpolation
+    hands:
+      left:
+        poses:
+          open: [0.78]
+          close: [0.0]
+      right:
+        poses:
+          open: [0.78]
+          close: [0.0]
+
+    # Button timing configuration
+    button_timings:
+      default_debounce: 0.05
+      estop_hold_duration: 1.0
+      exit_hold_duration: 2.0
+      combo_grace_period: 0.1
 
 
 topics:
   # Input topics (from exoskeleton/JoyCon)
   exo_joints: "exo/joints"      # Joint positions from exoskeleton
   exo_joycon: "exo/joycon"      # JoyCon controller inputs
-
+  vr_controllers: "vr/controllers"
   # Output topics (to robot)
   robot_commands: "robot/safe_commands"  # Safety-validated commands
   robot_status: "robot/status"           # Robot feedback
@@ -161,11 +198,15 @@ recorder:
     left_hand: true
     right_hand: true
 
+    # Force-torque sensors
+    left_wrist_wrench: true
+    right_wrist_wrench: true
+
     # Camera images
     head_left_rgb: true
     head_right_rgb: true
-    left_wrist_rgb: true  # Not implemented yet
-    right_wrist_rgb: true  # Not implemented yet
+    left_wrist_rgb: true  
+    right_wrist_rgb: true 
 
 init_pos:
   left_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

@@ -53,11 +53,44 @@ input_handlers:
           three_finger_pinch: [-0.12, -0.47, -0.48, 0.28, 0.28, 1.41]
           open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
           close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
+  # VR device configuration (used when teleop_mode: "vr")
+  vr:
+    socket:
+      server_url: "http://localhost:8080"
+    # VR-specific settings
+    device_type: "quest3"  # Options: quest3, vive, index
+    tracking_space: "standing"  # Options: standing, seated
+    position_scale: 1.0  # Scale factor for VR to robot space
+    position_offset: [0.0, 0.0, 0.0]  # Offset for VR origin
+    use_relative_control: true  # Use relative pose control
+    stick_deadzone: 0.2  # Deadzone for thumbstick inputs
+    sync_interval: 2.0
+
+    # Base control settings (thumbstick control)
+    base:
+      linear_velocity: 0.5
+      angular_velocity: 1.0
+
+    # Torso control settings
+    torso:
+      sensitivity: 0.01
+
+    # Hand configuration - only open/close poses used for VR trigger interpolation
+    hands:
+      left:
+        poses:
+          open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
+      right:
+        poses:
+          open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
 
 
 topics:
   exo_joints: "exo/joints"
   exo_joycon: "exo/joycon"
+  vr_controllers: "vr/controllers"
   robot_commands: "robot/safe_commands"
   robot_status: "robot/status"
   robot_joints: "robot/joints"
@@ -126,8 +159,12 @@ recorder:
     head: false       # No head
     left_hand: true
     right_hand: true
-    head_left_rgb: false   # No head cameras
-    head_right_rgb: false
+    # Force-torque sensors
+    left_wrist_wrench: true
+    right_wrist_wrench: true
+
+    head_left_rgb: true   # No head cameras
+    head_right_rgb: true
     left_wrist_rgb: false
     right_wrist_rgb: false
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "omniteleop"
-version = "0.4.0"
+version = "0.4.1a"
 description = "Universal teleoperation system for robot control"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,9 +41,17 @@ dependencies = [
     "dexmotion>=0.4.0",
     "hatch",
     "joycon-lib",
+    "fastapi>=0.100.0",
+    "dextop",
+    "uvicorn[standard]>=0.20.0",
+    "mcap>=0.0.10",
+    "mcap-protobuf-support>=0.0.5",
+    "protobuf>=3.20.0",
+    "pynput>=1.7.0",
 ]
 
 [project.optional-dependencies]
+
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
@@ -56,7 +64,6 @@ dev = [
 [project.scripts]
 omni-arm = "omniteleop.leader.arm_reader:main"
 omni-joycon = "omniteleop.leader.joycon_reader:main"
-omni-vr = "omniteleop.leader.vr_reader:main"
 omni-cmd = "omniteleop.follower.command_processor:main"
 omni-robot = "omniteleop.follower.robot_controller:main"
 omni-telemetry = "omniteleop.tools.telemetry_viewer:main"

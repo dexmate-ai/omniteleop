@@ -209,13 +209,13 @@ class MultiChannelFilter:
 
                         self.previous_values[key] = filtered_value
                         filtered_data[field] = filtered_value
-                
+
                 # Handle chassis velocity fields (vx, vy, wz)
                 if "vx" in data and "vy" in data and "wz" in data:
                     for vel_field in ["vx", "vy", "wz"]:
                         key = f"{component}_{vel_field}"
                         current = float(data[vel_field])
-                        
+
                         if key in self.previous_values:
                             filtered_value = (
                                 alpha * current
@@ -223,7 +223,7 @@ class MultiChannelFilter:
                             )
                         else:
                             filtered_value = current
-                        
+
                         self.previous_values[key] = filtered_value
                         filtered_data[vel_field] = filtered_value
 

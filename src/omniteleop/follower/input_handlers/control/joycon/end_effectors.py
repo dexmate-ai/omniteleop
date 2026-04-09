@@ -193,7 +193,7 @@ class GripperController(AbstractEndEffectorController):
 
         # Get poses from config (only open and close for gripper)
         self.predefined_poses = config.get("poses", {"close": [0.0], "open": [0.78]})
-        
+
         # Get DOF from first predefined pose, default to 1 for simple gripper
         if self.predefined_poses:
             self.dof = len(list(self.predefined_poses.values())[0])

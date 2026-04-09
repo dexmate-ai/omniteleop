@@ -17,7 +17,7 @@ from omniteleop.common.logging import setup_logging
 from omniteleop.common.debug_display import get_debug_display
 from loguru import logger
 
-class JoyConReader():
+class JoyConReader:
     """Reads JoyCon inputs and publishes via Zenoh using Node interface."""
 
     def __init__(

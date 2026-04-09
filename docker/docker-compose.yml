@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  omniteleop:
+    image: omniteleop:latest
+    # Uncomment below to auto-rebuild on run (slower)
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        - HOME_DIR=${HOME}
+    container_name: omniteleop
+    
+    # Run as root (simplest for device access and package permissions)
+    # Recording file ownership is handled by passing HOST_UID/HOST_GID to container
+
+    # Environment variables (customize as needed)
+    environment:
+      - ROBOT_CONFIG=${ROBOT_CONFIG:-vega_1u_f5d6}  # Can be overridden at runtime (e.g., vega_1u_gripper)
+      - ROBOT_NAME=${ROBOT_NAME:-}  # Auto-fetched from Jetson at startup by entrypoint.sh if not set
+      - JETSON_IP=${JETSON_IP:-192.168.50.20}
+      - JETSON_USER=${JETSON_USER:-dexmate}  # For SSH access to Jetson (fetch ROBOT_NAME, launch/stop dexsensor)
+      - JETSON_PASSWORD=${JETSON_PASSWORD:-hello-dex}  # For SSH access to Jetson
+      # ZENOH_CONFIG is auto-set by entrypoint.sh to: ${HOME}/.dexmate/comm/zenoh/world_engine/zenoh_peer_config.json5
+      - DEXCONTROL_DISABLE_HEARTBEAT=1
+      - RECORDER_SAVE_DIR=${RECORDER_SAVE_DIR:-/exchange/data_sink}  # Can be overridden at runtime
+      - HOST_UID=${UID:-1000}  # Pass host UID for fixing file ownership
+      - HOST_GID=${GID:-1000}  # Pass host GID for fixing file ownership
+    
+    # Mount volumes for data persistence
+    volumes:
+      # Mount recordings directory to host for data persistence
+      # This maps the host directory (set by RECORDER_SAVE_DIR env var) to the same path in container
+      - ${RECORDER_SAVE_DIR:-/exchange/data_sink}:${RECORDER_SAVE_DIR:-/exchange/data_sink}
+      # Optionally mount logs directory
+      - ./logs:/app/logs
+      # Mount the source code for development (optional, remove in production)
+      - ..:/app/omniteleop
+      # Mount .dexmate config directory (same path as host to match config file paths)
+      - ~/.dexmate:${HOME}/.dexmate
+      # Mount USB devices for serial communication
+      - /dev/bus/usb:/dev/bus/usb
+      # Mount dbus for Bluetooth communication (read-write for JoyCon)
+      - /run/dbus:/run/dbus
+
+    # Network mode: use host networking for Zenoh communication
+    network_mode: host
+    
+    # Use the custom entrypoint
+    entrypoint: ["/app/omniteleop/docker/entrypoint.sh"]
+    
+    # Keep container running
+    stdin_open: true
+    tty: true
+    
+    # Restart policy
+    restart: unless-stopped
+
+    # Device access for USB devices (Dynamixel) and Bluetooth (JoyCon)
+    privileged: true
+    devices:
+      - /dev/input:/dev/input       # For JoyCon and other input devices
+      - /dev/ttyUSB0:/dev/ttyUSB0   # For Dynamixel/serial devices (explicit mapping)

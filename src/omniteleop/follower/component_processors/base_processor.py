@@ -1,7 +1,7 @@
 """Base class for component processors."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 from dexmotion.motion_manager import MotionManager
 from omniteleop.follower.input_handlers.base_handler import RobotCommand
@@ -63,11 +63,7 @@ class BaseComponentProcessor(ABC):
         pass
 
     @abstractmethod
-    def process(
-        self,
-        input_data: Dict[str, Any],
-        command: RobotCommand
-    ) -> bool:
+    def process(self, input_data: Dict[str, Any], command: RobotCommand) -> bool:
         """Process component input and update command output.
 
         Takes input data from command.input_components, processes it according

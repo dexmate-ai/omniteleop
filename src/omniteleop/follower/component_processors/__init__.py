@@ -4,7 +4,9 @@ Each component processor handles a specific robot component (arms, hands, etc.)
 with a unified interface for processing commands and syncing state.
 """
 
-from omniteleop.follower.component_processors.base_processor import BaseComponentProcessor
+from omniteleop.follower.component_processors.base_processor import (
+    BaseComponentProcessor,
+)
 from omniteleop.follower.component_processors.chassis_processor import ChassisProcessor
 from omniteleop.follower.component_processors.head_processor import HeadProcessor
 from omniteleop.follower.component_processors.torso_processor import TorsoProcessor

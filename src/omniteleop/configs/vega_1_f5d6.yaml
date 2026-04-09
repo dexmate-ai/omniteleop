@@ -3,7 +3,7 @@
 
 # Teleoperation mode selection
 # Options: "exo_joycon" (exoskeleton + JoyCon), "vr" (VR controllers), "keyboard" (testing)
-teleop_mode: 'exo_joycon'
+teleop_mode: 'vr'
 
 # Input handler configurations for different teleop modes
 input_handlers:
@@ -73,12 +73,45 @@ input_handlers:
           three_finger_pinch: [-0.12, -0.47, -0.48, 0.28, 0.28, 1.41]
           open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
           close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
+  # VR device configuration (used when teleop_mode: "vr")
+  vr:
+    socket:
+      server_url: "http://localhost:8080"
+    # VR-specific settings
+    device_type: "quest3"  # Options: quest3, vive, index
+    tracking_space: "standing"  # Options: standing, seated
+    position_scale: 1.0  # Scale factor for VR to robot space
+    position_offset: [0.0, 0.0, 0.0]  # Offset for VR origin
+    use_relative_control: true  # Use relative pose control
+    stick_deadzone: 0.2  # Deadzone for thumbstick inputs
+    sync_interval: 2.0
+
+    # Base control settings (thumbstick control)
+    base:
+      linear_velocity: 0.5
+      angular_velocity: 1.0
+
+    # Torso control settings
+    torso:
+      sensitivity: 0.01
+
+    # Hand configuration - only open/close poses used for VR trigger interpolation
+    hands:
+      left:
+        poses:
+          open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
+      right:
+        poses:
+          open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
 
 
 topics:
   # Input topics (from exoskeleton/JoyCon)
   exo_joints: "exo/joints"      # Joint positions from exoskeleton
   exo_joycon: "exo/joycon"      # JoyCon controller inputs
+  vr_controllers: "vr/controllers"
 
   # Output topics (to robot)
   robot_commands: "robot/safe_commands"  # Safety-validated commands
@@ -147,7 +180,7 @@ safety:
 # MDP Recorder configuration for policy learning
 recorder:
   enabled: true  # Set to true to enable recording
-  save_dir: "recordings"  # Directory to save recorded episodes
+  save_dir: "/home/recordings"  # Directory to save recorded episodes
   episode_prefix: "episode"  # Prefix for episode directories
   record_rate: 20.0  # Recording frequency in Hz
   save_images: true  # Whether to save camera images
@@ -166,6 +199,10 @@ recorder:
     head: true
     left_hand: true
     right_hand: true
+
+    # Force-torque sensors
+    left_wrist_wrench: true
+    right_wrist_wrench: true
 
     # Camera images
     head_left_rgb: true

@@ -11,8 +11,8 @@ import time
 import pickle
 import threading
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
-from dataclasses import dataclass, asdict
+from typing import Dict, Any, Optional, Tuple
+from dataclasses import dataclass
 from datetime import datetime
 from multiprocessing import Pool
 import numpy as np
@@ -33,18 +33,24 @@ from dexcomm.codecs import DictDataCodec
 # Import pynput for pedal mode (optional dependency)
 try:
     from pynput import keyboard as pynput_keyboard
+
     PYNPUT_AVAILABLE = True
 except ImportError:
     PYNPUT_AVAILABLE = False
-    logger.warning("⚠️ pynput not available. Pedal mode will not work. Install with: pip install pynput")
+    logger.warning(
+        "⚠️ pynput not available. Pedal mode will not work. Install with: pip install pynput"
+    )
 
 # Import rerun for visual indicator (optional dependency)
 try:
     import rerun as rr
+
     RERUN_AVAILABLE = True
 except ImportError:
     RERUN_AVAILABLE = False
-    logger.debug("⚠️ rerun not available. Visual indicator will not work. Install with: pip install rerun-sdk")
+    logger.debug(
+        "⚠️ rerun not available. Visual indicator will not work. Install with: pip install rerun-sdk"
+    )
 
 def _save_single_image(args: Tuple[str, np.ndarray, bool, int]) -> None:
     """Helper function to save a single image (for multiprocessing).
@@ -61,6 +67,7 @@ def _save_single_image(args: Tuple[str, np.ndarray, bool, int]) -> None:
 @dataclass
 class MDPTransition:
     """Single MDP transition data."""
+
     timestamp_ns: int
     observation: Dict[str, Any]
     action: Dict[str, Any]
@@ -91,25 +98,29 @@ class MDPRecorder:
         self._node = Node(name="mdp_recorder", namespace=namespace)
         self.record_mode = record_mode
         self.show_rerun = show_rerun
-        
+
         # Pedal mode variables
         self.pedal_key_press_times = {}
         self.pedal_key_lock = threading.Lock()
         self.pedal_hold_duration = 1.0  # seconds
         self.pedal_listener = None
         self.pedal_running = False
-        
+
         # Initialize rerun if requested
         if self.show_rerun:
             if not RERUN_AVAILABLE:
-                logger.warning("⚠️ rerun not available. Visual indicator disabled. Install with: pip install rerun-sdk")
+                logger.warning(
+                    "⚠️ rerun not available. Visual indicator disabled. Install with: pip install rerun-sdk"
+                )
                 self.show_rerun = False
             else:
                 try:
                     rr.init("MDP Recorder Status", spawn=True)
                     logger.info("📊 Rerun visual indicator enabled")
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to initialize rerun: {e}. Visual indicator disabled.")
+                    logger.warning(
+                        f"⚠️ Failed to initialize rerun: {e}. Visual indicator disabled."
+                    )
                     self.show_rerun = False
 
         # Load configuration from robot_config.yaml
@@ -130,7 +141,9 @@ class MDPRecorder:
 
         # Parse image resolution
         resolution = recorder_config.get("image_resolution", [640, 480])
-        self.image_resolution = tuple(resolution) if isinstance(resolution, list) else (640, 480)
+        self.image_resolution = (
+            tuple(resolution) if isinstance(resolution, list) else (640, 480)
+        )
 
         self.compress_images = recorder_config.get("compress_images", True)
         self.jpeg_quality = recorder_config.get("jpeg_quality", 90)
@@ -143,8 +156,10 @@ class MDPRecorder:
             self.hand_type = "gripper"
         else:
             self.hand_type = "hand_f5d6"
-        
-        logger.info(f"🤏 Hand type detected: {self.hand_type} (from ROBOT_CONFIG={robot_config})")
+
+        logger.info(
+            f"🤏 Hand type detected: {self.hand_type} (from ROBOT_CONFIG={robot_config})"
+        )
 
         # Component recording configuration
         components_config = recorder_config.get("components", {})
@@ -173,7 +188,7 @@ class MDPRecorder:
         # Current state
         self.latest_command = None
         self.command_lock = threading.Lock()
-        
+
         # Action tracking - maintain complete action state at all times
         self.current_action = {}  # Holds the most recent action for each component
         self.last_action = {}  # Holds the last action for each component (for fallback)
@@ -196,12 +211,14 @@ class MDPRecorder:
         self.debug = debug
 
         # Check if any images should be saved
-        self.save_images = any([
-            self.record_components["head_left_rgb"],
-            self.record_components["head_right_rgb"],
-            self.record_components["left_wrist_rgb"],
-            self.record_components["right_wrist_rgb"],
-        ])
+        self.save_images = any(
+            [
+                self.record_components["head_left_rgb"],
+                self.record_components["head_right_rgb"],
+                self.record_components["left_wrist_rgb"],
+                self.record_components["right_wrist_rgb"],
+            ]
+        )
 
         logger.info(
             f"🎬 MDP Recorder initialized: save_dir={self.save_dir}, "
@@ -227,7 +244,9 @@ class MDPRecorder:
 
         return max(numbers, default=-1) + 1
 
-    def _set_sensor_enabled(self,sensors_cfg: Any, sensor_name: str, enabled: bool, warn: bool = True) -> None:
+    def _set_sensor_enabled(
+        self, sensors_cfg: Any, sensor_name: str, enabled: bool, warn: bool = True
+    ) -> None:
         sensor_cfg = getattr(sensors_cfg, sensor_name, None)
         if sensor_cfg is None or not hasattr(sensor_cfg, "enable"):
             if enabled and warn:
@@ -242,7 +261,7 @@ class MDPRecorder:
         self.subscriber = self._node.create_subscriber(
             commands_topic,
             callback=self._on_command_received,
-            decoder=DictDataCodec.decode
+            decoder=DictDataCodec.decode,
         )
         # logger.info(f"📡 Subscribed to commands: {self._resolve_topic(commands_topic)}")
 
@@ -254,7 +273,10 @@ class MDPRecorder:
             robot_configs.sensors["head_camera"].enabled = True
             # robot_configs.sensors.head_camera.use_rtc = False
 
-            if self.record_components["left_wrist_rgb"] or self.record_components["right_wrist_rgb"]:
+            if (
+                self.record_components["left_wrist_rgb"]
+                or self.record_components["right_wrist_rgb"]
+            ):
                 print("Enabling left wrist camera")
                 print(robot_configs.sensors)
                 robot_configs.sensors["left_wrist_camera"].enabled = True
@@ -263,9 +285,9 @@ class MDPRecorder:
                 print(robot_configs.sensors)
                 robot_configs.sensors["right_wrist_camera"].enabled = True
                 # self._set_sensor_enabled(robot_configs.sensors, "right_wrist_camera", True, warn=True)
-            
+
             self.robot = Robot(configs=robot_configs)
-            
+
             # Wait for camera to become active if images are needed
             if self.save_images:
                 logger.info("📷 Waiting for camera streams to become active...")
@@ -286,15 +308,19 @@ class MDPRecorder:
             logger.info("⌨️ Keyboard mode: Using keyboard controls for start/stop")
         elif self.record_mode == "pedal":
             if not PYNPUT_AVAILABLE:
-                logger.error("❌ Pedal mode requires pynput. Install with: pip install pynput")
+                logger.error(
+                    "❌ Pedal mode requires pynput. Install with: pip install pynput"
+                )
                 raise ImportError("pynput is required for pedal mode")
-            logger.info("🎹 Pedal mode: Using pedal controls (hold 'a'=start, 'b'=end, 'c'=discard for 1s)")
+            logger.info(
+                "🎹 Pedal mode: Using pedal controls (hold 'a'=start, 'b'=end, 'c'=discard for 1s)"
+            )
         else:
             control_topic = self.config.get_topic("recorder_control")
             self.control_subscriber = self._node.create_subscriber(
                 control_topic,
                 callback=self._on_control_received,
-                decoder=DictDataCodec.decode
+                decoder=DictDataCodec.decode,
             )
             # logger.info(f"📡 Subscribed to control: {self._resolve_topic(control_topic)}")
             logger.info("👂 MDP Recorder is now listening for start/stop commands")
@@ -303,7 +329,7 @@ class MDPRecorder:
         """Handle incoming robot command and update action state."""
         with self.command_lock:
             self.latest_command = data
-        
+
         # Update current action state with new components
         # Hold previous values for components not in this command
         with self.action_lock:
@@ -311,12 +337,16 @@ class MDPRecorder:
             for component_name, component_data in components.items():
                 # Update this component's action
                 self.current_action[component_name] = component_data
-        
+
         # Check for recording triggers in safety flags
         safety_flags = data.get("safety_flags", {})
 
         # Auto-stop recording on emergency stop if configured
-        if self.auto_stop_on_estop and self.is_recording and safety_flags.get("emergency_stop", False):
+        if (
+            self.auto_stop_on_estop
+            and self.is_recording
+            and safety_flags.get("emergency_stop", False)
+        ):
             logger.info("🛑 Emergency stop detected, ending episode")
             self.end_episode()
 
@@ -330,7 +360,9 @@ class MDPRecorder:
         """Handle recording control commands."""
         logger.info(f"📨 MDP Recorder received control message: {data}")
         command = data.get("command", "")
-        logger.info(f"🎯 Extracted command: '{command}', current recording state: {self.is_recording}")
+        logger.info(
+            f"🎯 Extracted command: '{command}', current recording state: {self.is_recording}"
+        )
 
         if command == "start" and not self.is_recording:
             metadata = data.get("metadata", {})
@@ -348,7 +380,9 @@ class MDPRecorder:
 
         # Create episode directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.episode_dir = self.save_dir / f"{self.episode_prefix}_{self.episode_num:04d}_{timestamp}"
+        self.episode_dir = (
+            self.save_dir / f"{self.episode_prefix}_{self.episode_num:04d}_{timestamp}"
+        )
         if self.episode_dir.exists():
             shutil.rmtree(self.episode_dir)
         self.episode_dir.mkdir(parents=True)
@@ -369,7 +403,7 @@ class MDPRecorder:
         self.transitions_in_episode = 0
         self.episode_start_time = time.time()
         self.episode_start_timestamp_ns = time.time_ns()
-        
+
         # Clear action state at start of new episode to ensure clean slate
         with self.action_lock:
             self.current_action.clear()
@@ -395,31 +429,31 @@ class MDPRecorder:
         # Start recording thread
         self.record_running = True
         self.record_thread = threading.Thread(
-            target=self._record_loop,
-            daemon=True,
-            name="MDPRecordLoop"
+            target=self._record_loop, daemon=True, name="MDPRecordLoop"
         )
         self.record_thread.start()
 
         # Print formatted banner
         logger.opt(colors=True).info(
-            "\n" + "="*80 + "\n"
+            "\n" + "=" * 80 + "\n"
             f"<white><bold><bg green>🎬 RECORDING STARTED - Episode {self.episode_num}</bg green></bold></white>\n"
             f"  📁 Directory: {self.episode_dir.name}\n"
             f"  📊 Record Rate: {self.record_rate} Hz\n"
             f"  📸 Save Images: {self.save_images}\n"
-            f"  📝 Metadata: {metadata if metadata else 'None'}\n"
-            + "="*80
+            f"  📝 Metadata: {metadata if metadata else 'None'}\n" + "=" * 80
         )
-        
+
         # Show rerun visual indicator
-        self._show_rerun_indicator("start", {
-            "episode_num": self.episode_num,
-            "directory": self.episode_dir.name,
-            "record_rate": self.record_rate,
-            "save_images": self.save_images,
-            "metadata": metadata if metadata else 'None',
-        })
+        self._show_rerun_indicator(
+            "start",
+            {
+                "episode_num": self.episode_num,
+                "directory": self.episode_dir.name,
+                "record_rate": self.record_rate,
+                "save_images": self.save_images,
+                "metadata": metadata if metadata else "None",
+            },
+        )
 
     def _record_loop(self):
         """Main recording loop that runs in separate thread."""
@@ -428,7 +462,11 @@ class MDPRecorder:
         while self.record_running and self.is_recording:
             # Get safety flags from latest command
             with self.command_lock:
-                safety_flags = self.latest_command.get("safety_flags", {}) if self.latest_command else {}
+                safety_flags = (
+                    self.latest_command.get("safety_flags", {})
+                    if self.latest_command
+                    else {}
+                )
 
             # Get observations from robot
             state = self._get_robot_state()
@@ -440,14 +478,21 @@ class MDPRecorder:
             # - Else if last_action exists, use last_action
             # - Else use observation as action (first occurrence in episode)
             resolved_action = {}
-            joint_components = ["left_arm", "right_arm", "torso", "head", "left_hand", "right_hand"]
-            
+            joint_components = [
+                "left_arm",
+                "right_arm",
+                "torso",
+                "head",
+                "left_hand",
+                "right_hand",
+            ]
+
             with self.action_lock:
                 for comp in joint_components:
                     # Only process components that are enabled for recording
                     if not self.record_components.get(comp, False):
                         continue
-                    
+
                     # Priority 1: current action from command
                     if comp in self.current_action:
                         resolved_action[comp] = self.current_action[comp]
@@ -458,11 +503,11 @@ class MDPRecorder:
                     elif comp in joint_pos:
                         # Convert observation format to action format: joint_pos -> {"pos": [...]}
                         resolved_action[comp] = {"pos": joint_pos[comp]}
-                    
+
                     # Update last_action with the resolved value for next iteration
                     if comp in resolved_action:
                         self.last_action[comp] = resolved_action[comp]
-                
+
                 # Handle chassis separately (not in joint_pos)
                 if "chassis" in self.current_action:
                     resolved_action["chassis"] = self.current_action["chassis"]
@@ -472,7 +517,9 @@ class MDPRecorder:
 
             # Log first transition to help debug
             if self.transitions_in_episode == 0:
-                logger.info(f"📊 First action - from command: {list(self.current_action.keys())}, resolved: {list(resolved_action.keys())}")
+                logger.info(
+                    f"📊 First action - from command: {list(self.current_action.keys())}, resolved: {list(resolved_action.keys())}"
+                )
 
             # Get camera images if enabled
             images = {}
@@ -487,7 +534,7 @@ class MDPRecorder:
                 metadata={
                     "safety_flags": safety_flags,
                     "transition_num": self.transitions_in_episode,
-                }
+                },
             )
 
             # Save transition
@@ -515,34 +562,52 @@ class MDPRecorder:
 
         # Get joint positions only for enabled components
         if self.record_components["left_arm"]:
-            observation["joint_pos"]["left_arm"] = self.robot.left_arm.get_joint_pos().tolist()
+            observation["joint_pos"]["left_arm"] = (
+                self.robot.left_arm.get_joint_pos().tolist()
+            )
         if self.record_components["right_arm"]:
-            observation["joint_pos"]["right_arm"] = self.robot.right_arm.get_joint_pos().tolist()
-        
+            observation["joint_pos"]["right_arm"] = (
+                self.robot.right_arm.get_joint_pos().tolist()
+            )
+
         # Check if torso exists before accessing (not all robots have torso)
         if self.record_components["torso"] and hasattr(self.robot, "torso"):
-            observation["joint_pos"]["torso"] = self.robot.torso.get_joint_pos().tolist()
+            observation["joint_pos"]["torso"] = (
+                self.robot.torso.get_joint_pos().tolist()
+            )
         elif self.record_components["torso"]:
             logger.debug("⚠️ torso not available on robot")
-        
+
         # Check if head exists before accessing (not all robots have head)
         if self.record_components["head"] and hasattr(self.robot, "head"):
             observation["joint_pos"]["head"] = self.robot.head.get_joint_pos().tolist()
         elif self.record_components["head"]:
             logger.debug("⚠️ head not available on robot")
-        
+
         # Record hand or gripper state based on hand type
         if self.record_components["left_hand"]:
-            observation["joint_pos"]["left_hand"] = self.robot.left_hand.get_joint_pos().tolist()
-        
+            observation["joint_pos"]["left_hand"] = (
+                self.robot.left_hand.get_joint_pos().tolist()
+            )
+
         if self.record_components["right_hand"]:
-            observation["joint_pos"]["right_hand"] = self.robot.right_hand.get_joint_pos().tolist()
+            observation["joint_pos"]["right_hand"] = (
+                self.robot.right_hand.get_joint_pos().tolist()
+            )
 
         # Get joint velocities for enabled arm components
-        if self.record_components["left_arm"] and hasattr(self.robot.left_arm, 'get_joint_vel'):
-            observation["joint_vel"]["left_arm"] = self.robot.left_arm.get_joint_vel().tolist()
-        if self.record_components["right_arm"] and hasattr(self.robot.right_arm, 'get_joint_vel'):
-            observation["joint_vel"]["right_arm"] = self.robot.right_arm.get_joint_vel().tolist()
+        if self.record_components["left_arm"] and hasattr(
+            self.robot.left_arm, "get_joint_vel"
+        ):
+            observation["joint_vel"]["left_arm"] = (
+                self.robot.left_arm.get_joint_vel().tolist()
+            )
+        if self.record_components["right_arm"] and hasattr(
+            self.robot.right_arm, "get_joint_vel"
+        ):
+            observation["joint_vel"]["right_arm"] = (
+                self.robot.right_arm.get_joint_vel().tolist()
+            )
 
         return observation
 
@@ -564,9 +629,13 @@ class MDPRecorder:
         image_dict = self.robot.sensors.head_camera.get_obs(obs_keys=head_obs_keys)
         image_dict = {f"head_{key}": value for key, value in image_dict.items()}
         if self.record_components["left_wrist_rgb"]:
-            image_dict["left_wrist_rgb"] = self.robot.sensors.left_wrist_camera.get_obs()
+            image_dict["left_wrist_rgb"] = (
+                self.robot.sensors.left_wrist_camera.get_obs()
+            )
         if self.record_components["right_wrist_rgb"]:
-            image_dict["right_wrist_rgb"] = self.robot.sensors.right_wrist_camera.get_obs()
+            image_dict["right_wrist_rgb"] = (
+                self.robot.sensors.right_wrist_camera.get_obs()
+            )
 
         # Process images - handle both direct arrays and dict format with timestamp
         for key, value in image_dict.items():
@@ -608,42 +677,55 @@ class MDPRecorder:
         episode_duration = time.time() - self.episode_start_time
 
         # Calculate statistics
-        avg_rate = self.transitions_in_episode / episode_duration if episode_duration > 0 else 0
-        
+        avg_rate = (
+            self.transitions_in_episode / episode_duration
+            if episode_duration > 0
+            else 0
+        )
+
         # Print formatted banner
         logger.opt(colors=True).info(
-            "\n" + "="*80 + "\n"
+            "\n" + "=" * 80 + "\n"
             f"<white><bold><bg blue>💾 EPISODE SAVED - Episode {self.episode_num}</bg blue></bold></white>\n"
             f"  📁 Directory: {self.episode_dir.name}\n"
             f"  📊 Transitions: {self.transitions_in_episode}\n"
             f"  ⏱️  Duration: {episode_duration:.1f}s\n"
             f"  📈 Avg Rate: {avg_rate:.1f} Hz\n"
             f"  🎯 Total Episodes: {self.total_episodes + 1}\n"
-            f"  📦 Total Transitions: {self.total_transitions}\n"
-            + "="*80
+            f"  📦 Total Transitions: {self.total_transitions}\n" + "=" * 80
         )
-        
+
         # Show rerun visual indicator
-        self._show_rerun_indicator("end", {
-            "episode_num": self.episode_num,
-            "directory": self.episode_dir.name,
-            "transitions": self.transitions_in_episode,
-            "duration": f"{episode_duration:.1f}",
-            "avg_rate": f"{avg_rate:.1f}",
-            "total_episodes": self.total_episodes + 1,
-            "total_transitions": self.total_transitions,
-        })
+        self._show_rerun_indicator(
+            "end",
+            {
+                "episode_num": self.episode_num,
+                "directory": self.episode_dir.name,
+                "transitions": self.transitions_in_episode,
+                "duration": f"{episode_duration:.1f}",
+                "avg_rate": f"{avg_rate:.1f}",
+                "total_episodes": self.total_episodes + 1,
+                "total_transitions": self.total_transitions,
+            },
+        )
 
         # Save episode data
         if self.episode_data:
-            logger.info(f"💾 Saving episode {self.episode_num} with {len(self.episode_data)} transitions...")
+            logger.info(
+                f"💾 Saving episode {self.episode_num} with {len(self.episode_data)} transitions..."
+            )
 
             # Prepare data for saving
             transitions_to_save = []
 
             # Prepare image saving tasks and transition data
             image_save_tasks = []
-            image_types = ["head_left_rgb", "head_right_rgb", "left_wrist_rgb", "right_wrist_rgb"]
+            image_types = [
+                "head_left_rgb",
+                "head_right_rgb",
+                "left_wrist_rgb",
+                "right_wrist_rgb",
+            ]
 
             for i, transition in enumerate(self.episode_data):
                 # Collect images to save
@@ -651,8 +733,12 @@ class MDPRecorder:
                     for img_type in image_types:
                         img = transition.observation.get(img_type)
                         if img is not None:
-                            img_path = self.episode_dir / img_type / f"frame_{i:06d}.jpg"
-                            image_save_tasks.append((img_path, img, self.compress_images, self.jpeg_quality))
+                            img_path = (
+                                self.episode_dir / img_type / f"frame_{i:06d}.jpg"
+                            )
+                            image_save_tasks.append(
+                                (img_path, img, self.compress_images, self.jpeg_quality)
+                            )
 
                 # Create transition data without images for pickle
                 transition_data = {
@@ -666,11 +752,15 @@ class MDPRecorder:
             # Save images in parallel using multiprocessing
             if image_save_tasks:
                 if self.num_workers > 0:
-                    logger.info(f"📸 Saving {len(image_save_tasks)} images using {self.num_workers} workers...")
+                    logger.info(
+                        f"📸 Saving {len(image_save_tasks)} images using {self.num_workers} workers..."
+                    )
                     with Pool(processes=self.num_workers) as pool:
                         pool.map(_save_single_image, image_save_tasks)
                 else:
-                    logger.info(f"📸 Saving {len(image_save_tasks)} images sequentially...")
+                    logger.info(
+                        f"📸 Saving {len(image_save_tasks)} images sequentially..."
+                    )
                     for task in image_save_tasks:
                         _save_single_image(task)
 
@@ -679,7 +769,6 @@ class MDPRecorder:
             with open(data_path, "wb") as f:
                 pickle.dump(transitions_to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-            
         else:
             logger.warning("⚠️ No data to save for episode")
 
@@ -709,24 +798,26 @@ class MDPRecorder:
 
         # Print formatted banner with red background
         logger.opt(colors=True).info(
-            "\n" + "="*80 + "\n"
+            "\n" + "=" * 80 + "\n"
             f"<white><bold><bg red>🗑️ EPISODE DISCARDED - Episode {self.episode_num}</bg red></bold></white>\n"
             f"  📁 Directory: {self.episode_dir.name if self.episode_dir else 'N/A'}\n"
             f"  📊 Transitions: {transitions_count}\n"
             f"  ⏱️  Duration: {episode_duration:.1f}s\n"
             f"  📈 Avg Rate: {avg_rate:.1f} Hz\n"
-            f"  ⚠️  Data was NOT saved\n"
-            + "="*80
+            f"  ⚠️  Data was NOT saved\n" + "=" * 80
         )
-        
+
         # Show rerun visual indicator
-        self._show_rerun_indicator("discard", {
-            "episode_num": self.episode_num,
-            "directory": self.episode_dir.name if self.episode_dir else 'N/A',
-            "transitions": transitions_count,
-            "duration": f"{episode_duration:.1f}",
-            "avg_rate": f"{avg_rate:.1f}",
-        })
+        self._show_rerun_indicator(
+            "discard",
+            {
+                "episode_num": self.episode_num,
+                "directory": self.episode_dir.name if self.episode_dir else "N/A",
+                "transitions": transitions_count,
+                "duration": f"{episode_duration:.1f}",
+                "avg_rate": f"{avg_rate:.1f}",
+            },
+        )
 
         # Clean up episode directory if it exists
         if self.episode_dir and self.episode_dir.exists():
@@ -743,47 +834,61 @@ class MDPRecorder:
 
     def _show_rerun_indicator(self, status: str, info_dict: Dict[str, Any]):
         """Show visual indicator using rerun.
-        
+
         Args:
             status: Status type - "start", "end", or "discard"
             info_dict: Dictionary containing information to display
         """
         if not self.show_rerun or not RERUN_AVAILABLE:
             return
-        
+
         try:
             # Color mapping (RGB values 0-255)
             color_map = {
-                "start": [0, 255, 0],      # Green
-                "end": [0, 128, 255],      # Blue
-                "discard": [255, 0, 0],    # Red
+                "start": [0, 255, 0],  # Green
+                "end": [0, 128, 255],  # Blue
+                "discard": [255, 0, 0],  # Red
             }
             color = color_map.get(status, [128, 128, 128])
-            
+
             # Create a large rectangle covering the viewport
             # Use 2D space with coordinates from -1000 to 1000 for a large indicator
             rect_size = 5000.0  # Very large rectangle
-            
+
             # Create text information
             lines = []
             if status == "start":
-                lines.append(f"🎬 RECORDING STARTED - Episode {info_dict.get('episode_num', 'N/A')}")
+                lines.append(
+                    f"🎬 RECORDING STARTED - Episode {info_dict.get('episode_num', 'N/A')}"
+                )
                 lines.append(f"📁 Directory: {info_dict.get('directory', 'N/A')}")
-                lines.append(f"📊 Record Rate: {info_dict.get('record_rate', 'N/A')} Hz")
+                lines.append(
+                    f"📊 Record Rate: {info_dict.get('record_rate', 'N/A')} Hz"
+                )
                 lines.append(f"📸 Save Images: {info_dict.get('save_images', 'N/A')}")
                 lines.append(f"📝 Metadata: {info_dict.get('metadata', 'None')}")
                 label = f"🎬 RECORDING STARTED - Episode {info_dict.get('episode_num', 'N/A')}"
             elif status == "end":
-                lines.append(f"💾 EPISODE SAVED - Episode {info_dict.get('episode_num', 'N/A')}")
+                lines.append(
+                    f"💾 EPISODE SAVED - Episode {info_dict.get('episode_num', 'N/A')}"
+                )
                 lines.append(f"📁 Directory: {info_dict.get('directory', 'N/A')}")
                 lines.append(f"📊 Transitions: {info_dict.get('transitions', 'N/A')}")
                 lines.append(f"⏱️  Duration: {info_dict.get('duration', 'N/A')}s")
                 lines.append(f"📈 Avg Rate: {info_dict.get('avg_rate', 'N/A')} Hz")
-                lines.append(f"🎯 Total Episodes: {info_dict.get('total_episodes', 'N/A')}")
-                lines.append(f"📦 Total Transitions: {info_dict.get('total_transitions', 'N/A')}")
-                label = f"💾 EPISODE SAVED - Episode {info_dict.get('episode_num', 'N/A')}"
+                lines.append(
+                    f"🎯 Total Episodes: {info_dict.get('total_episodes', 'N/A')}"
+                )
+                lines.append(
+                    f"📦 Total Transitions: {info_dict.get('total_transitions', 'N/A')}"
+                )
+                label = (
+                    f"💾 EPISODE SAVED - Episode {info_dict.get('episode_num', 'N/A')}"
+                )
             elif status == "discard":
-                lines.append(f"🗑️ EPISODE DISCARDED - Episode {info_dict.get('episode_num', 'N/A')}")
+                lines.append(
+                    f"🗑️ EPISODE DISCARDED - Episode {info_dict.get('episode_num', 'N/A')}"
+                )
                 lines.append(f"📁 Directory: {info_dict.get('directory', 'N/A')}")
                 lines.append(f"📊 Transitions: {info_dict.get('transitions', 'N/A')}")
                 lines.append(f"⏱️  Duration: {info_dict.get('duration', 'N/A')}s")
@@ -804,11 +909,14 @@ class MDPRecorder:
                     show_labels=True,
                 ),
             )
-            
+
             # Log text information to rerun's text log
             full_text = "\n".join(lines)
-            rr.log("status_indicator/text", rr.TextLog(full_text, level=rr.TextLogLevel.INFO))
-            
+            rr.log(
+                "status_indicator/text",
+                rr.TextLog(full_text, level=rr.TextLogLevel.INFO),
+            )
+
         except Exception as e:
             logger.debug(f"Failed to show rerun indicator: {e}")
 
@@ -834,8 +942,10 @@ class MDPRecorder:
     def _run_keyboard_mode(self):
         """Run recorder with keyboard controls (keyboard mode)."""
         logger.info("⌨️ MDP Recorder running in keyboard mode")
-        logger.info("🎮 Commands: 's' = start recording, 'e' = end episode, 'd' = delete/discard, 'q' = quit")
-        
+        logger.info(
+            "🎮 Commands: 's' = start recording, 'e' = end episode, 'd' = delete/discard, 'q' = quit"
+        )
+
         try:
             while True:
                 # Print current status
@@ -847,31 +957,33 @@ class MDPRecorder:
                     )
                 else:
                     logger.info("⏸️  Idle - Press 's' to start recording")
-                
+
                 # Wait for user input
                 user_input = input("Command (s/e/d/q): ").strip().lower()
 
-                if user_input == 's' and not self.is_recording:
+                if user_input == "s" and not self.is_recording:
                     logger.info("▶️ Starting new episode...")
                     self.start_episode()
-                elif user_input == 'e' and self.is_recording:
+                elif user_input == "e" and self.is_recording:
                     logger.info("⏹️ Ending current episode...")
                     self.end_episode()
-                elif user_input == 'd' and self.is_recording:
+                elif user_input == "d" and self.is_recording:
                     logger.info("🗑️ Discarding current episode...")
                     self.discard_episode()
-                elif user_input == 'q':
+                elif user_input == "q":
                     logger.info("👋 Quitting recorder...")
                     break
-                elif user_input == 's' and self.is_recording:
-                    logger.warning("⚠️ Already recording! Press 'e' to end or 'd' to discard current episode first.")
-                elif user_input == 'e' and not self.is_recording:
+                elif user_input == "s" and self.is_recording:
+                    logger.warning(
+                        "⚠️ Already recording! Press 'e' to end or 'd' to discard current episode first."
+                    )
+                elif user_input == "e" and not self.is_recording:
                     logger.warning("⚠️ Not recording! Press 's' to start a new episode.")
-                elif user_input == 'd' and not self.is_recording:
+                elif user_input == "d" and not self.is_recording:
                     logger.warning("⚠️ Not recording! Press 's' to start a new episode.")
                 else:
                     logger.warning(f"❓ Unknown command: '{user_input}'")
-                    
+
         except KeyboardInterrupt:
             logger.info("⚡ Recorder interrupted by user")
 
@@ -880,17 +992,19 @@ class MDPRecorder:
         print("Hello")
         if not PYNPUT_AVAILABLE:
             return
-        
+
         try:
             # Get character from key
-            if hasattr(key, 'char') and key.char:
+            if hasattr(key, "char") and key.char:
                 key_char = key.char.lower()
                 print("key_char", key_char)
-                if key_char in {'a', 'b', 'c'}:
+                if key_char in {"a", "b", "c"}:
                     with self.pedal_key_lock:
                         if key_char not in self.pedal_key_press_times:
                             self.pedal_key_press_times[key_char] = time.time()
-                            logger.debug(f"🎹 Pedal key '{key_char}' pressed, waiting for {self.pedal_hold_duration}s hold...")
+                            logger.debug(
+                                f"🎹 Pedal key '{key_char}' pressed, waiting for {self.pedal_hold_duration}s hold..."
+                            )
         except AttributeError:
             # Special keys don't have char attribute
             pass
@@ -899,44 +1013,56 @@ class MDPRecorder:
         """Handle pedal key release event."""
         if not PYNPUT_AVAILABLE:
             return False
-        
+
         try:
             # Get character from key
-            if hasattr(key, 'char') and key.char:
+            if hasattr(key, "char") and key.char:
                 key_char = key.char.lower()
-                if key_char in {'a', 'b', 'c'}:
+                if key_char in {"a", "b", "c"}:
                     with self.pedal_key_lock:
                         if key_char in self.pedal_key_press_times:
                             press_time = self.pedal_key_press_times[key_char]
                             hold_time = time.time() - press_time
                             del self.pedal_key_press_times[key_char]
-                            
+
                             if hold_time >= self.pedal_hold_duration:
                                 # Execute the action based on key
-                                if key_char == 'a' and not self.is_recording:
-                                    logger.info("▶️ Pedal 'a' detected: Starting new episode...")
+                                if key_char == "a" and not self.is_recording:
+                                    logger.info(
+                                        "▶️ Pedal 'a' detected: Starting new episode..."
+                                    )
                                     self.start_episode()
-                                elif key_char == 'b' and self.is_recording:
-                                    logger.info("⏹️ Pedal 'b' detected: Ending current episode...")
+                                elif key_char == "b" and self.is_recording:
+                                    logger.info(
+                                        "⏹️ Pedal 'b' detected: Ending current episode..."
+                                    )
                                     self.end_episode()
-                                elif key_char == 'c' and self.is_recording:
-                                    logger.info("🗑️ Pedal 'c' detected: Discarding current episode...")
+                                elif key_char == "c" and self.is_recording:
+                                    logger.info(
+                                        "🗑️ Pedal 'c' detected: Discarding current episode..."
+                                    )
                                     self.discard_episode()
-                                elif key_char == 'a' and self.is_recording:
-                                    logger.warning("⚠️ Already recording! Press 'b' to end or 'c' to discard first.")
-                                elif key_char in {'b', 'c'} and not self.is_recording:
-                                    logger.warning("⚠️ Not recording! Press 'a' to start a new episode.")
+                                elif key_char == "a" and self.is_recording:
+                                    logger.warning(
+                                        "⚠️ Already recording! Press 'b' to end or 'c' to discard first."
+                                    )
+                                elif key_char in {"b", "c"} and not self.is_recording:
+                                    logger.warning(
+                                        "⚠️ Not recording! Press 'a' to start a new episode."
+                                    )
                             else:
-                                logger.debug(f"❌ Key '{key_char}' released too early ({hold_time:.2f}s < {self.pedal_hold_duration}s)")
+                                logger.debug(
+                                    f"❌ Key '{key_char}' released too early ({hold_time:.2f}s < {self.pedal_hold_duration}s)"
+                                )
         except AttributeError:
             # Special keys don't have char attribute
             pass
-        
+
         # Stop listener on escape key
         if PYNPUT_AVAILABLE and key == pynput_keyboard.Key.esc:
             self.pedal_running = False
             return False
-        
+
         return True
 
     def _check_pedal_hold_duration(self):
@@ -949,53 +1075,68 @@ class MDPRecorder:
                     hold_time = current_time - press_time
                     if hold_time >= self.pedal_hold_duration:
                         # Execute the action based on key
-                        if key_char == 'a' and not self.is_recording:
-                            logger.info(f"✅ Pedal 'a' held for {self.pedal_hold_duration}s: Starting new episode...")
+                        if key_char == "a" and not self.is_recording:
+                            logger.info(
+                                f"✅ Pedal 'a' held for {self.pedal_hold_duration}s: Starting new episode..."
+                            )
                             self.start_episode()
                             keys_to_remove.append(key_char)
-                        elif key_char == 'b' and self.is_recording:
-                            logger.info(f"✅ Pedal 'b' held for {self.pedal_hold_duration}s: Ending current episode...")
+                        elif key_char == "b" and self.is_recording:
+                            logger.info(
+                                f"✅ Pedal 'b' held for {self.pedal_hold_duration}s: Ending current episode..."
+                            )
                             self.end_episode()
                             keys_to_remove.append(key_char)
-                        elif key_char == 'c' and self.is_recording:
-                            logger.info(f"✅ Pedal 'c' held for {self.pedal_hold_duration}s: Discarding current episode...")
+                        elif key_char == "c" and self.is_recording:
+                            logger.info(
+                                f"✅ Pedal 'c' held for {self.pedal_hold_duration}s: Discarding current episode..."
+                            )
                             self.discard_episode()
                             keys_to_remove.append(key_char)
-                        elif key_char == 'a' and self.is_recording:
-                            logger.warning("⚠️ Already recording! Press 'b' to end or 'c' to discard first.")
+                        elif key_char == "a" and self.is_recording:
+                            logger.warning(
+                                "⚠️ Already recording! Press 'b' to end or 'c' to discard first."
+                            )
                             keys_to_remove.append(key_char)
-                        elif key_char in {'b', 'c'} and not self.is_recording:
-                            logger.warning("⚠️ Not recording! Press 'a' to start a new episode.")
+                        elif key_char in {"b", "c"} and not self.is_recording:
+                            logger.warning(
+                                "⚠️ Not recording! Press 'a' to start a new episode."
+                            )
                             keys_to_remove.append(key_char)
-                
+
                 for key_char in keys_to_remove:
                     if key_char in self.pedal_key_press_times:
                         del self.pedal_key_press_times[key_char]
-            
+
             time.sleep(0.1)  # Check every 100ms
 
     def _run_pedal_mode(self):
         """Run recorder with pedal controls (pedal mode)."""
         if not PYNPUT_AVAILABLE:
-            logger.error("❌ Pedal mode requires pynput. Install with: pip install pynput")
+            logger.error(
+                "❌ Pedal mode requires pynput. Install with: pip install pynput"
+            )
             return
-        
+
         logger.info("🎹 MDP Recorder running in pedal mode")
-        logger.info("🎮 Pedal controls: Hold 'a' for 1s = start, 'b' for 1s = end, 'c' for 1s = discard")
+        logger.info(
+            "🎮 Pedal controls: Hold 'a' for 1s = start, 'b' for 1s = end, 'c' for 1s = discard"
+        )
         logger.info("Press 'esc' to quit\n")
-        
+
         self.pedal_running = True
-        
+
         # Start checking hold duration in a separate thread
-        check_thread = threading.Thread(target=self._check_pedal_hold_duration, daemon=True)
+        check_thread = threading.Thread(
+            target=self._check_pedal_hold_duration, daemon=True
+        )
         check_thread.start()
-        
+
         # Create and start keyboard listener
         try:
             print("trying to listen to pedal")
             with pynput_keyboard.Listener(
-                on_press=self._on_pedal_key_press,
-                on_release=self._on_pedal_key_release
+                on_press=self._on_pedal_key_press, on_release=self._on_pedal_key_release
             ) as listener:
                 while self.pedal_running:
                     # Print current status periodically
@@ -1007,9 +1148,9 @@ class MDPRecorder:
                         )
                     else:
                         logger.info("⏸️  Idle - Hold 'a' for 1s to start recording")
-                    
+
                     time.sleep(5.0)  # Status update interval
-                    
+
                     if not listener.running:
                         break
         except KeyboardInterrupt:
@@ -1047,7 +1188,7 @@ class MDPRecorder:
                     self.pedal_listener.stop()
                 except Exception:
                     pass
-        
+
         # End any ongoing episode
         if self.is_recording:
             self.end_episode()
@@ -1098,9 +1239,11 @@ def main(
         )
         return 0
 
-    logger.info(f"⚙️ Recorder config: save_dir={recorder_config.get('save_dir')}, "
-                f"rate={recorder_config.get('record_rate')}Hz, "
-                f"images={recorder_config.get('save_images')}")
+    logger.info(
+        f"⚙️ Recorder config: save_dir={recorder_config.get('save_dir')}, "
+        f"rate={recorder_config.get('record_rate')}Hz, "
+        f"images={recorder_config.get('save_images')}"
+    )
 
     # Create and run recorder
     recorder = MDPRecorder(

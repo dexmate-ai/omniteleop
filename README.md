@@ -7,7 +7,8 @@
 ## 📦 Installation
 
 ```shell
-pip install omniteleop
+cd omniteleop/
+pip install -e .
 ```
 
 ## ✨ Features
@@ -18,6 +19,7 @@ pip install omniteleop
 - 📹 **Data Collection** - Record teleoperation data for policy learning
 - 🔄 **Trajectory Replay** - Replay recorded robot trajectories
 - 📊 **Telemetry Viewer** - Real-time visualization of joint data
+- 😎 **GUI** - Easy to use WebApp that provides an intuitive, visual layer to the entire repository.
 
 ## 🚀 Quick Start
 
@@ -28,6 +30,9 @@ omni-cmd       # Command processor with safety
 omni-robot     # Robot controller
 omni-recorder  # MDP recorder for policy learning
 omni-telemetry # Telemetry viewer
+
+# alpha
+app/launch.sh  # One command that replaces all
 ```
 
 ## 📄 Licensing

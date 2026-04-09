@@ -25,7 +25,7 @@ from omniteleop.common.logging import setup_logging
 from omniteleop.common.debug_display import get_debug_display
 from loguru import logger
 
-class LeaderArmReader():
+class LeaderArmReader:
     """Reads leader arm (exoskeleton) positions and publishes via Zenoh."""
 
     # Motor configuration constants

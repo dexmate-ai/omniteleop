@@ -6,7 +6,9 @@ import numpy as np
 from loguru import logger
 from dexmotion.configs.ik import IKDampingWeightsConfig, LocalPinkIKConfig
 
-from omniteleop.follower.component_processors.base_processor import BaseComponentProcessor
+from omniteleop.follower.component_processors.base_processor import (
+    BaseComponentProcessor,
+)
 from omniteleop.follower.input_handlers.base_handler import RobotCommand, CommandMode
 from omniteleop.common.log_utils import suppress_loguru_module
 
@@ -86,9 +88,7 @@ class TorsoProcessor(BaseComponentProcessor):
             }
             return True
 
-    def _process_torso_delta(
-        self, deltas: List[float], command: RobotCommand
-    ) -> bool:
+    def _process_torso_delta(self, deltas: List[float], command: RobotCommand) -> bool:
         """Compute torso joint positions from Cartesian delta movement.
 
         Uses IK to solve for torso joint positions that achieve the
@@ -119,12 +119,10 @@ class TorsoProcessor(BaseComponentProcessor):
 
         try:
             with suppress_loguru_module("dexmotion", enabled=True):
-                joint_solution, has_collision, within_limits = (
-                    self.motion_manager.ik(
-                        target_pose=target_pose,
-                        type="pink",
-                        custom_config=self.torso_ik_config,
-                    )
+                joint_solution, has_collision, within_limits = self.motion_manager.ik(
+                    target_pose=target_pose,
+                    type="pink",
+                    custom_config=self.torso_ik_config,
                 )
 
                 if not has_collision:

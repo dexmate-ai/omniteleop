@@ -2,7 +2,9 @@
 
 from typing import Dict, Any
 
-from omniteleop.follower.component_processors.base_processor import BaseComponentProcessor
+from omniteleop.follower.component_processors.base_processor import (
+    BaseComponentProcessor,
+)
 from omniteleop.follower.input_handlers.base_handler import RobotCommand
 
 class ChassisProcessor(BaseComponentProcessor):
