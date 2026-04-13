@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 13% 13%;
+    --muted: 210 17% 92%;
+    --muted-foreground: 215 13% 22%;   /* darker → better contrast */
+    --border: 214 13% 87%;
+    --input: 214 13% 87%;
+    --ring: 220 13% 13%;
+    --primary: 220 13% 13%;
+    --primary-foreground: 210 20% 98%;
+    --secondary: 210 17% 93%;
+    --secondary-foreground: 220 13% 13%;
+    --destructive: 0 72% 47%;
+    --destructive-foreground: 0 0% 100%;
+    --accent: 210 17% 93%;
+    --accent-foreground: 220 13% 13%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 224 15% 6%;          /* near-black page background */
+    --foreground: 210 20% 96%;         /* near-white, easy to read */
+    --muted: 224 13% 18%;              /* zinc-800 equivalent — card/panel bg */
+    --muted-foreground: 215 14% 78%;   /* lighter → better contrast on dark */
+    --border: 224 13% 22%;
+    --input: 224 13% 22%;
+    --ring: 210 20% 96%;
+    --primary: 210 20% 96%;
+    --primary-foreground: 224 15% 10%;
+    --secondary: 224 13% 18%;
+    --secondary-foreground: 210 20% 96%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --accent: 224 13% 18%;
+    --accent-foreground: 210 20% 96%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Card shadows and stronger headings */
+.card {
+  box-shadow: 0 1px 4px 0 rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+}
+.dark .card {
+  box-shadow: 0 1px 6px 0 rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04);
+}
+[class*="CardTitle"] {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+[class*="CardContent"] label,
+[class*="CardContent"] p {
+  font-weight: 500;
+}
+
+/* Notion-style subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(214 13% 82%);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(214 13% 68%);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(222 14% 28%);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(222 14% 40%);
+}

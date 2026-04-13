@@ -1,0 +1,91 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "omniteleop"
+version = "0.4.2a"
+description = "Universal teleoperation system for robot control"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "AGPL-3.0"}
+authors = [
+    {name = "Dexmate Team", email = "contact@dexmate.ai"},
+]
+keywords = ["robotics", "teleoperation", "exoskeleton", "robot-control"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "loguru>=0.6.0",
+    "rich>=13.0.0",
+    "tyro>=0.5.0",
+    "pyyaml>=6.0",
+    "dexcontrol>=0.4.0",  # Robot control library
+    "pytransform3d>=3.14.2",
+    "python-socketio>=5.13.0",
+    "rerun-sdk>=0.15.0",  # Rerun visualization for robotics data
+    "opencv-python>=4.5.0",  # For image processing in recorder
+    "dexcomm>=0.4.0",
+    "dexmotion>=0.4.0",
+    "hatch",
+    "joycon-lib",
+    "fastapi>=0.100.0",
+    "dextop",
+    "uvicorn[standard]>=0.20.0",
+    "mcap>=0.0.10",
+    "mcap-protobuf-support>=0.0.5",
+    "protobuf>=3.20.0",
+    "pynput>=1.7.0",
+]
+
+[project.optional-dependencies]
+
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff",
+    "isort>=5.12.0",
+    "pyright",
+    "pre-commit",
+]
+
+[project.scripts]
+omni-arm = "omniteleop.leader.arm_reader:main"
+omni-joycon = "omniteleop.leader.joycon_reader:main"
+omni-cmd = "omniteleop.follower.command_processor:main"
+omni-robot = "omniteleop.follower.robot_controller:main"
+omni-telemetry = "omniteleop.tools.telemetry_viewer:main"
+omni-recorder = "omniteleop.record.mdp_recorder:main"
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/omniteleop"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/omniteleop",
+    "README.md",
+    "LICENSE",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312', 'py313']
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

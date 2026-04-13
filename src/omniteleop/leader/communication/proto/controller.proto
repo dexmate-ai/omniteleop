@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package ControllerProto;
+
+message Pos   { float x = 1; float y = 2; float z = 3; }
+message Quat  { float w = 1; float x = 2; float y = 3; float z = 4; }
+
+message Pose {
+  Pos  p = 1;
+  Quat q = 2;
+}
+
+message Skeleton {
+  repeated Pos joint_pos = 1;
+}
+
+message Thumbstick {
+  float x = 1;
+  float y = 2;
+}
+
+message ControllerTransform {
+    Pose wrist_pose = 1;
+    float hand_trigger = 2;
+    float index_trigger = 3;
+    Thumbstick thumbstick = 4;
+    float grip_trigger = 5;
+    bool thumbstick_click = 6;
+}
+
+message ControllerTransformPair {
+    ControllerTransform left_hand = 1;
+    ControllerTransform right_hand = 2;
+    Pose head = 3;
+    Pose left_arm = 4;
+    Pose right_arm = 5;
+}
+
+message HandTransform {
+  Pose     wrist_pose = 1;
+  Skeleton skeleton   = 2;
+}
+
+message HandTransformPair {
+  HandTransform left_hand  = 1;
+  HandTransform right_hand = 2;
+  Pose head = 3;
+  Pose left_arm = 4;
+  Pose right_arm = 5;
+}

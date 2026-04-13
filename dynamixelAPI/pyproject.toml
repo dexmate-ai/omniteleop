@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dynamixel_sdk"
+version = "3.8.4"
+description = "Dynamixel SDK Python package for controlling Dynamixel motors"
+readme = "README.txt"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Leon Jung", email = "rwjung@robotis.com"},
+    {name = "Wonho Yun", email = "ywh@robotis.com"},
+]
+
+dependencies = [
+    "pyserial>=3.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/ROBOTIS-GIT/DynamixelSDK"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dynamixel_sdk*"]

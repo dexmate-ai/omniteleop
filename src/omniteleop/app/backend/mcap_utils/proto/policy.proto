@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package robot_teleop;
+
+// Policy per-step inference annotation
+// Written to /policy/step topic in state_action.mcap during policy deployments.
+message PolicyStepAnnotation {
+    int64 inference_begin_ns = 1;   // Timestamp before policy.predict_action()
+    int64 inference_end_ns = 2;     // Timestamp after policy.predict_action()
+    int32 action_queue_size = 3;    // len(action_queue) after predict
+    int32 policy_control_flag = 4;  // 1 if policy controls this step, 0 if human/other
+}

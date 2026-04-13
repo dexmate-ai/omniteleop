@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package robot_teleop;
+
+// Wrench (force-torque) sensor state
+message WrenchState {
+    repeated float force = 1;   // float32[3]: [fx, fy, fz] in N
+    repeated float torque = 2;  // float32[3]: [mx, my, mz] in Nm
+}
+
+// Robot State Messages
+message ArmState {
+    repeated float qpos = 1;  // float32[7]
+    repeated float qvel = 2;  // float32[7]
+}
+
+message HandState {
+    repeated float qpos = 1;  // Variable dimension: float32[1] for gripper, float32[6] for f5d6, float32[3] for head/torso
+}
+
+message RobotState {
+    ArmState left_arm = 1;
+    ArmState right_arm = 2;
+    HandState head = 3;  // qpos only, float32[3]
+    HandState left_hand = 4;  // float32[1] for gripper, float32[6] for f5d6
+    HandState right_hand = 5;  // float32[1] for gripper, float32[6] for f5d6
+    HandState torso = 6;  // qpos only, float32[3]
+    WrenchState left_wrist_wrench = 7;
+    WrenchState right_wrist_wrench = 8;
+}
+
+// Robot Action Messages
+message ArmAction {
+    repeated float qpos = 1;  // float32[7]
+}
+
+message HandAction {
+    repeated float qpos = 1;  // Variable dimension: float32[1] for gripper, float32[6] for f5d6
+}
+
+message ChassisAction {
+    float vx = 1;
+    float vy = 2;
+    float wz = 3;
+}
+
+message RobotAction {
+    ArmAction left_arm = 1;
+    ArmAction right_arm = 2;
+    HandAction left_hand = 3;  // float32[1] for gripper, float32[6] for f5d6
+    HandAction right_hand = 4;  // float32[1] for gripper, float32[6] for f5d6
+    HandAction head = 5;  // float32[3]
+    HandAction torso = 6;  // float32[3]
+    ChassisAction chassis = 7;
+}
+

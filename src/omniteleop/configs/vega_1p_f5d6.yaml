@@ -1,0 +1,216 @@
+# Dexexoskeleton Configuration
+# Simple, user-friendly configuration for the teleoperation system
+
+# Teleoperation mode selection
+# Options: "exo_joycon" (exoskeleton + JoyCon), "vr" (VR controllers), "keyboard" (testing)
+teleop_mode: 'exo_joycon'
+
+# Input handler configurations for different teleop modes
+input_handlers:
+  # Exoskeleton + JoyCon configuration (used when teleop_mode: "exo_joycon")
+  exo_joycon:
+    # Leader arms (exoskeleton) configuration
+    leader_arms:
+      compensate_torso_pitch: true
+      port: "/dev/ttyUSB0"
+      baud_rate: 3000000
+      left_arm:
+        motor_ids: [101, 102, 103, 104, 105, 106, 107]  # Exoskeleton motor IDs
+        # Polarity corrections for each motor (1 or -1)
+        motor_polarities: [1, 1, 1, -1, 1, 1, 1]  # Motor 104 (4th motor) is inverted
+        # These joint names are for the FOLLOWER robot that will be controlled
+        follower_joint_names: ["L_arm_j1", "L_arm_j2", "L_arm_j3", "L_arm_j4", "L_arm_j5", "L_arm_j6", "L_arm_j7"]
+      right_arm:
+        motor_ids: [1, 2, 3, 4, 5, 6, 7]  # Exoskeleton motor IDs
+        # Polarity corrections for each motor (1 or -1)
+        motor_polarities: [1, 1, 1, 1, 1, 1, 1]  # All motors normal polarity
+        # These joint names are for the FOLLOWER robot that will be controlled
+        follower_joint_names: ["R_arm_j1", "R_arm_j2", "R_arm_j3", "R_arm_j4", "R_arm_j5", "R_arm_j6", "R_arm_j7"]
+
+    # JoyCon-specific settings
+    joycon:
+      stick_deadzone: 0.3  # Deadzone for thumbstick inputs
+
+    # Button timing configuration
+    button_timings:
+      default_debounce: 0.01  # Debounce time for regular buttons (seconds)
+      stick_debounce: 0.03    # Debounce time for stick buttons (seconds)
+      estop_hold_duration: 1.5  # Time to hold both sticks for emergency stop toggle (seconds)
+      exit_hold_duration: 1.0   # Time to hold all 4 buttons for exit (seconds)
+      recording_hold_duration: 1.0  # Time to hold L + R buttons for recording toggle (seconds)
+      head_toggle_duration: 1.0  # Time to hold + and - buttons for head control toggle (seconds)
+      combo_grace_period: 0.1   # Grace period for brief button release in combos (seconds)
+
+    # Base control settings
+    base:
+      linear_velocity: 0.4
+      angular_velocity: 0.8
+
+    # Torso control settings
+    torso:
+      sensitivity: 0.020
+
+    # Head control settings
+    head:
+      mode: 'manual'  # Options: 'fixed', 'manual'
+      fixed_position: [0.5, 0.0, 0.0]  # Fixed head position when mode is 'fixed' [head_j1, head_j2, head_j3]
+      sensitivity: 0.1  # Sensitivity for manual head control (relative control)
+
+    # Hand configuration
+    hands:
+      sensitivity: 0.05
+      left:
+        poses:
+          home: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          pinch: [-0.12, -0.47, 0.28, 0.28, 0.28, 1.41]
+          three_finger_pinch: [-0.12, -0.47, -0.48, 0.28, 0.28, 1.41]
+          open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
+      right:
+        poses:
+          home: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          pinch: [-0.12, -0.47, 0.28, 0.28, 0.28, 1.41]
+          three_finger_pinch: [-0.12, -0.47, -0.48, 0.28, 0.28, 1.41]
+          open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
+  # VR device configuration (used when teleop_mode: "vr")
+  vr:
+    socket:
+      server_url: "http://localhost:8080"
+    # VR-specific settings
+    device_type: "quest3"  # Options: quest3, vive, index
+    tracking_space: "standing"  # Options: standing, seated
+    position_scale: 1.0  # Scale factor for VR to robot space
+    position_offset: [0.0, 0.0, 0.0]  # Offset for VR origin
+    use_relative_control: true  # Use relative pose control
+    stick_deadzone: 0.2  # Deadzone for thumbstick inputs
+    sync_interval: 2.0 
+
+    # Base control settings (thumbstick control)
+    base:
+      linear_velocity: 0.5
+      angular_velocity: 1.0
+
+    # Torso control settings
+    torso:
+      sensitivity: 0.01
+
+    # Hand configuration - only open/close poses used for VR trigger interpolation
+    hands:
+      left:
+        poses:
+          open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
+      right:
+        poses:
+          open: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+          close: [-0.1, -1.0946, -1.0844, -1.0154, -1.0118, 0.84]
+
+
+topics:
+  # Input topics (from exoskeleton/JoyCon)
+  exo_joints: "exo/joints"      # Joint positions from exoskeleton
+  exo_joycon: "exo/joycon"      # JoyCon controller inputs
+  vr_controllers: "vr/controllers"
+  # Output topics (to robot)
+  robot_commands: "robot/safe_commands"  # Safety-validated commands
+  robot_status: "robot/status"           # Robot feedback
+  robot_joints: "robot/joints"           # Robot joint positions feedback
+  telemetry: "robot/telemetry"           # Robot telemetry
+
+  # Recorder control topic
+  recorder_control: "recorder/control"   # Recording start/stop commands
+
+# Control rates (Hz)
+rates:
+  input_rate: 20       # Rate for reading exoskeleton/JoyCon
+  command_rate: 20     # Rate for command & safety processing
+  control_rate: 100    # Rate for robot control loop
+  feedback_rate: 100    # Rate for publishing robot joint feedback
+
+# Filter configuration for smoothing robot commands
+# Each component can have its own filter settings
+filters:
+  # Default filter applied to all components unless overridden
+  default:
+    type: "butterworth"  # Options: none, ema, butterworth
+    cutoff_freq: 10.0    # For butterworth: cutoff frequency in Hz
+    order: 2             # For butterworth: filter order
+    alpha: 0.1           # For ema: smoothing factor (0-1, lower = smoother)
+
+  # Component-specific filter settings (override default)
+  components:
+    left_arm:
+      type: "butterworth"
+      cutoff_freq: 3.0    # Lower cutoff for smoother arm motion
+      order: 2
+
+    right_arm:
+      type: "butterworth"
+      cutoff_freq: 3.0
+      order: 2
+
+    torso:
+      type: "butterworth"
+      cutoff_freq: 5.0    # Even smoother for torso
+      order: 2
+
+    left_hand:
+      type: "butterworth"
+      cutoff_freq: 8.0
+      order: 2
+
+    right_hand:
+      type: "butterworth"
+      cutoff_freq: 8.0
+      order: 2
+
+    chassis:
+      type: "butterworth"  # Smooth filtering for base velocity commands
+      cutoff_freq: 5.0     # Moderate smoothing for chassis motion
+      order: 2
+
+# Safety parameters
+safety:
+  enable_collision_check: true
+  collision_padding: 0.02  # meters
+  enable_joint_limits: true
+
+# MDP Recorder configuration for policy learning
+recorder:
+  enabled: true  # Set to true to enable recording
+  save_dir: "recordings"  # Directory to save recorded episodes
+  episode_prefix: "episode"  # Prefix for episode directories
+  record_rate: 20.0  # Recording frequency in Hz
+  save_images: true  # Whether to save camera images
+  image_resolution: [960, 600]  # Image resolution [width, height]
+  compress_images: true  # Compress images as JPEG to save space
+  jpeg_quality: 90  # JPEG compression quality (1-100, higher = better quality)
+  auto_stop_on_estop: false  # Stop recording on emergency stop
+  num_workers: 4  # Number of parallel workers for saving images (0 = sequential)
+
+  # Component recording configuration - specify what to save
+  components:
+    # Joint states
+    left_arm: true
+    right_arm: true
+    torso: true
+    head: true
+    left_hand: true
+    right_hand: true
+
+    # Force-torque sensors
+    left_wrist_wrench: true
+    right_wrist_wrench: true
+
+    # Camera images
+    head_left_rgb: true
+    head_right_rgb: true
+
+init_pos:
+  left_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  right_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  head: [0.0, 0.0, 0.0]
+  torso: [0.52, 1.05, 0.37]
+  left_hand: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]
+  right_hand: [0.1834, 0.2891, 0.2801, 0.284, 0.2811, -0.0158]

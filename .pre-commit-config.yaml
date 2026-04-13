@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: src/omniteleop/leader/communication/proto
+      - id: end-of-file-fixer
+        exclude: src/omniteleop/leader/communication/proto
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      # Exclude auto-generated proto files
+      - id: ruff-check
+        args: [--fix, src]
+      - id: ruff-format
+        args: [src]
