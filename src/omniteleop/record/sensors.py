@@ -183,7 +183,6 @@ class HeadCamera:
                 out.append(Reading(topic, payload, ts))
             else:
                 img = cv2.resize(payload, self.image_resolution)
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
                 out.append(Reading(topic, img, ts))
         return out
 
@@ -221,7 +220,6 @@ class WristCamera:
         if value is None:
             return []
         img = cv2.resize(value["data"], self.image_resolution)
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         return [Reading(self.topic, img, int(value["timestamp_ns"]))]
 
 
