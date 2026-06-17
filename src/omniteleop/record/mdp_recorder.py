@@ -231,10 +231,11 @@ class MDPRecorder(BaseRecorder):
         # rglob so episodes nested under MM-DD-YYYY day folders (and any legacy
         # flat ones) still count toward the resume sequence number.
         existing = list(self.save_dir.rglob(f"{self.episode_prefix}_*"))
+        prefix_len = len(self.episode_prefix.split("_"))
         nums = []
         for d in existing:
             try:
-                nums.append(int(d.name.split("_")[-1]))
+                nums.append(int(d.name.split("_")[prefix_len]))
             except (ValueError, IndexError):
                 continue
         return max(nums, default=-1) + 1

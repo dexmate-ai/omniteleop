@@ -225,6 +225,9 @@ class RobotController:
 
         # Parse home positions from config (no hardware movement)
         self._parse_home_positions()
+        
+        logger.info("Disable torso auto-idle mode")
+        self.robot.torso.set_idle_mode(False)
 
         if self.interpolation_method == "ruckig":
             self._init_ruckig_generators()
@@ -296,7 +299,7 @@ class RobotController:
                 cmd_pos = np.array(gen.out.new_position)
 
                 if component == "torso":
-                    self.robot.torso.set_joint_pos(cmd_pos, wait_time=0.0)
+                    self.robot.torso.set_joint_target(cmd_pos, tracked=True)
                 elif component in {"left_arm", "right_arm"}:
                     getattr(self.robot, component).set_joint_pos(cmd_pos, wait_time=0.0)
 
@@ -419,10 +422,9 @@ class RobotController:
         """Send torso directly to its home position (no planning)."""
         if not (self.has_torso and "torso" in self.home_positions):
             return
-        self.robot.torso.set_joint_pos(
+        self.robot.torso.set_joint_target(
             self.home_positions["torso"],
-            wait_time=9.0,
-            exit_on_reach=True,
+            tracked=True,
         )
 
     def _move_head_to_home_direct(self) -> None:
@@ -851,7 +853,6 @@ class RobotController:
             vx=base_data["vx"],
             vy=base_data["vy"],
             wz=base_data["wz"],
-            sequential_steering=abs(base_data["vy"]) > 0.02,
         )
 
     def _send_torso_command(self, torso_data: Dict):
@@ -860,18 +861,10 @@ class RobotController:
         Args:
             torso_data: Dictionary with position and velocity.
         """
-        if self.interpolation_method == "none":
-            self.robot.torso.set_joint_pos_vel(
-                torso_data["pos"],
-                0.2,
-                wait_time=0.0,
-            )
-        else:
-            self.robot.torso.set_joint_pos_vel(
-                torso_data["pos"],
-                torso_data["vel"],
-                wait_time=0.0,
-            )
+        # logger.info(f'Debugging interploration_method: {self.interpolation_method} and torso_data: {torso_data}')
+        self.robot.torso.set_joint_target(
+            torso_data["pos"],
+        )
 
     def _send_head_command(self, head_data: Dict):
         """Send command to head joints.
@@ -1006,7 +999,10 @@ class RobotController:
         # Telemetry publisher cleanup handled by Node
 
         if self.robot:
+            logger.info("Re-enabling torso auto-idle mode")
+            self.robot.torso.set_idle_mode(True)
             self.robot.shutdown()
+            
 
         # Node handles cleanup
         self.node.shutdown()
