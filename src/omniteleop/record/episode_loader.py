@@ -12,7 +12,7 @@ Two on-disk episode layouts exist:
   ``episode.mcap`` + dexdata ``metadata.json`` sidecar. Actions live on
   ``/robot/action/<component>/qpos`` (float32) and
   ``/chassis/action/velocity`` (``[vx, vy, wz]``); camera frames on
-  ``/camera/<name>/rgb/video`` (H264, decoded to BGR by dexdata).
+  ``/camera/<name>/rgb/video`` (AV1, decoded to RGB by dexdata).
 
 Both loaders present the same surface: ``rate_hz`` / ``num_frames`` /
 ``cameras`` properties plus a ``frames()`` iterator yielding
@@ -269,8 +269,10 @@ class MCAPEpisodeLoader:
             for name, it in cam_iters.items():
                 frame = next(it, None)
                 if frame is not None:
-                    # dexdata decodes to BGR; imencode expects BGR — no cvt.
-                    ok, buf = cv2.imencode(".jpg", frame, encode_params)
+                    # dexdata decodes to RGB; imencode expects BGR.
+                    ok, buf = cv2.imencode(
+                        ".jpg", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR), encode_params
+                    )
                     if ok:
                         images[name] = buf.tobytes()
             yield ReplayFrame(i, components, dict(DEFAULT_SAFETY_FLAGS), images)

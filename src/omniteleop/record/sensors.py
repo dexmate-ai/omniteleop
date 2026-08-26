@@ -213,8 +213,9 @@ class HeadCamera:
             if mod == "depth":
                 out.append(Reading(topic, payload, ts))
             else:
+                # dexcontrol yields RGB and dexdata's CompressedVideo handler
+                # expects RGB — no conversion.
                 img = cv2.resize(payload, self.image_resolution)
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
                 out.append(Reading(topic, img, ts))
         return out
 
@@ -251,8 +252,9 @@ class WristCamera:
         value = getattr(robot.sensors, self._sensor_attr).get_obs(include_timestamp=True)
         if value is None:
             return []
+        # dexcontrol yields RGB and dexdata's CompressedVideo handler
+        # expects RGB — no conversion.
         img = cv2.resize(value["data"], self.image_resolution)
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         return [Reading(self.topic, img, _obs_timestamp_ns(value))]
 
 

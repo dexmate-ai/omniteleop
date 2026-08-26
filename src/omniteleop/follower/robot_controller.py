@@ -425,7 +425,7 @@ class RobotController:
         """Send torso directly to its home position (no planning)."""
         if not (self.has_torso and "torso" in self.home_positions):
             return
-        self.robot.move.torso.move_to_joint_pos(
+        self.robot.torso.move_to_joint_pos(
             self.home_positions["torso"],
         )
 
